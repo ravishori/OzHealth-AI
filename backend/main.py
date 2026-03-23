@@ -224,6 +224,27 @@ async def on_startup():
     from app.services.reminder_worker import start_scheduler
     start_scheduler()
 
+    # ── Weekend log cleanup scheduler ─────────────────────────────────────────
+    # Runs every Saturday at 00:05 local time.
+    # cleanup_old_logs() also runs at startup as an immediate safety net; the
+    # Saturday job handles the recurring weekly purge during long-running deploys.
+    from apscheduler.schedulers.asyncio import AsyncIOScheduler
+    from apscheduler.triggers.cron import CronTrigger
+    from app.core.logging_config import cleanup_old_logs
+
+    log_scheduler = AsyncIOScheduler(timezone="Australia/Sydney")
+    log_scheduler.add_job(
+        cleanup_old_logs,
+        CronTrigger(day_of_week="sat", hour=0, minute=5),
+        kwargs={"retain_days": 7},
+        id="weekly_log_cleanup",
+        name="Weekly log cleanup (Saturday 00:05 AEDT)",
+        replace_existing=True,
+    )
+    log_scheduler.start()
+    app.state.log_scheduler = log_scheduler   # keep reference for graceful shutdown
+    logger.info("Weekly log cleanup scheduler started (runs every Saturday 00:05 AEDT)")
+
     # Validate external service credentials (warn if missing)
     from app.services.notification_service import validate_external_services
     validate_external_services()
@@ -241,6 +262,11 @@ async def on_startup():
 async def on_shutdown():
     from app.services.reminder_worker import stop_scheduler
     stop_scheduler()
+
+    # Gracefully stop the log cleanup scheduler
+    if hasattr(app.state, "log_scheduler"):
+        app.state.log_scheduler.shutdown(wait=False)
+
     logger.info("%s shut down", settings.APP_NAME)
     audit_log.info("app_shutdown", extra={"version": settings.APP_VERSION})
 

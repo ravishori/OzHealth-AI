@@ -303,9 +303,13 @@ async def send_otp(req: SendOTPRequest, db: AsyncSession = Depends(get_db)):
     else:
         sent = await asyncio.to_thread(_send_sms_otp, req.identifier, otp_code)
 
-    # Dev fallback — always log masked OTP to console (NOT in production)
+    # Dev fallback — log the FULL OTP so developers can test without email/SMS
+    # This line must be removed (or disabled by setting DEBUG=false) before going to production
     if settings.DEBUG:
-        logger.info("[DEV OTP] %s → %s** (expires %s)", _mask(req.identifier), otp_code[:2], expires_at)
+        logger.info(
+            "[DEV OTP] identifier=%s  otp=%s  purpose=%s  expires=%s",
+            _mask(req.identifier), otp_code, req.purpose, expires_at.strftime("%H:%M:%S UTC"),
+        )
 
     if not sent and not settings.DEBUG:
         raise HTTPException(

@@ -87,3 +87,7 @@
 {"asctime": "2026-03-23 13:41:56,946", "level": "INFO", "logger": "vitapulse.audit", "message": "app_startup", "version": "1.0.0"}
 {"asctime": "2026-03-23 13:44:33,447", "level": "INFO", "logger": "vitapulse.audit", "message": "app_startup", "version": "1.0.0"}
 {"asctime": "2026-03-23 13:45:26,194", "level": "INFO", "logger": "vitapulse.audit", "message": "otp_sent", "identifier": "test***", "purpose": "register"}
+{"asctime": "2026-03-23 16:32:41,032", "level": "INFO", "logger": "vitapulse.audit", "message": "app_startup", "version": "1.0.0"}
+{"asctime": "2026-03-23 16:33:07,306", "level": "INFO", "logger": "vitapulse.audit", "message": "app_startup", "version": "1.0.0"}
+{"asctime": "2026-03-23 16:35:17,424", "level": "INFO", "logger": "vitapulse.audit", "message": "app_startup", "version": "1.0.0"}
+{"asctime": "2026-03-23 16:35:20,269", "level": "INFO", "logger": "vitapulse.audit", "message": "app_shutdown", "version": "1.0.0"}

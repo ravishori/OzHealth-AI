@@ -218,3 +218,33 @@
 {"asctime": "2026-03-23 15:56:10,500", "level": "WARNING", "logger": "apscheduler.executors.default", "message": "Run time of job \"_dispatch_reminders (trigger: interval[0:05:00], next run at: 2026-03-23 15:59:33 IST)\" was missed by 0:01:37.146237"}
 {"asctime": "2026-03-23 15:59:33,369", "level": "INFO", "logger": "app.services.reminder_worker", "message": "[ReminderWorker] Checking reminders at 10:29 \u2014 0 due"}
 {"asctime": "2026-03-23 16:04:33,374", "level": "INFO", "logger": "app.services.reminder_worker", "message": "[ReminderWorker] Checking reminders at 10:34 \u2014 0 due"}
+{"asctime": "2026-03-23 16:09:33,379", "level": "INFO", "logger": "app.services.reminder_worker", "message": "[ReminderWorker] Checking reminders at 10:39 \u2014 0 due"}
+{"asctime": "2026-03-23 16:14:33,362", "level": "INFO", "logger": "app.services.reminder_worker", "message": "[ReminderWorker] Checking reminders at 10:44 \u2014 0 due"}
+{"asctime": "2026-03-23 16:19:33,376", "level": "INFO", "logger": "app.services.reminder_worker", "message": "[ReminderWorker] Checking reminders at 10:49 \u2014 0 due"}
+{"asctime": "2026-03-23 16:24:33,376", "level": "INFO", "logger": "app.services.reminder_worker", "message": "[ReminderWorker] Checking reminders at 10:54 \u2014 0 due"}
+{"asctime": "2026-03-23 16:32:40,885", "level": "DEBUG", "logger": "tzlocal", "message": "Looking up time zone info from registry"}
+{"asctime": "2026-03-23 16:32:40,907", "level": "INFO", "logger": "app.services.reminder_worker", "message": "[ReminderWorker] APScheduler started (5-min reminders + 08:00 refill alerts)"}
+{"asctime": "2026-03-23 16:32:40,908", "level": "INFO", "logger": "main", "message": "Weekly log cleanup scheduler started (runs every Saturday 00:05 AEDT)"}
+{"asctime": "2026-03-23 16:32:40,908", "level": "WARNING", "logger": "app.services.notification_service", "message": "FIREBASE_CREDENTIALS_PATH not set \u2014 push notifications disabled."}
+{"asctime": "2026-03-23 16:32:40,909", "level": "WARNING", "logger": "app.services.notification_service", "message": "ENCRYPTION_KEY not set \u2014 using derived key. Set ENCRYPTION_KEY in .env for production security."}
+{"asctime": "2026-03-23 16:32:41,032", "level": "INFO", "logger": "app.services.cache_service", "message": "Redis connected: redis://localhost:6379/0"}
+{"asctime": "2026-03-23 16:32:41,032", "level": "INFO", "logger": "main", "message": "VitaPulse AI v1.0.0 started"}
+{"asctime": "2026-03-23 16:32:41,032", "level": "INFO", "logger": "main", "message": "API docs: http://localhost:8000/docs"}
+{"asctime": "2026-03-23 16:33:07,256", "level": "DEBUG", "logger": "tzlocal", "message": "Looking up time zone info from registry"}
+{"asctime": "2026-03-23 16:33:07,263", "level": "INFO", "logger": "app.services.reminder_worker", "message": "[ReminderWorker] APScheduler started (5-min reminders + 08:00 refill alerts)"}
+{"asctime": "2026-03-23 16:33:07,263", "level": "INFO", "logger": "main", "message": "Weekly log cleanup scheduler started (runs every Saturday 00:05 AEDT)"}
+{"asctime": "2026-03-23 16:33:07,264", "level": "WARNING", "logger": "app.services.notification_service", "message": "FIREBASE_CREDENTIALS_PATH not set \u2014 push notifications disabled."}
+{"asctime": "2026-03-23 16:33:07,264", "level": "WARNING", "logger": "app.services.notification_service", "message": "ENCRYPTION_KEY not set \u2014 using derived key. Set ENCRYPTION_KEY in .env for production security."}
+{"asctime": "2026-03-23 16:33:07,306", "level": "INFO", "logger": "app.services.cache_service", "message": "Redis connected: redis://localhost:6379/0"}
+{"asctime": "2026-03-23 16:33:07,306", "level": "INFO", "logger": "main", "message": "VitaPulse AI v1.0.0 started"}
+{"asctime": "2026-03-23 16:33:07,306", "level": "INFO", "logger": "main", "message": "API docs: http://localhost:8000/docs"}
+{"asctime": "2026-03-23 16:35:17,319", "level": "DEBUG", "logger": "tzlocal", "message": "Looking up time zone info from registry"}
+{"asctime": "2026-03-23 16:35:17,325", "level": "INFO", "logger": "app.services.reminder_worker", "message": "[ReminderWorker] APScheduler started (5-min reminders + 08:00 refill alerts)"}
+{"asctime": "2026-03-23 16:35:17,326", "level": "INFO", "logger": "main", "message": "Weekly log cleanup scheduler started (runs every Saturday 00:05 AEDT)"}
+{"asctime": "2026-03-23 16:35:17,326", "level": "WARNING", "logger": "app.services.notification_service", "message": "FIREBASE_CREDENTIALS_PATH not set \u2014 push notifications disabled."}
+{"asctime": "2026-03-23 16:35:17,326", "level": "WARNING", "logger": "app.services.notification_service", "message": "ENCRYPTION_KEY not set \u2014 using derived key. Set ENCRYPTION_KEY in .env for production security."}
+{"asctime": "2026-03-23 16:35:17,424", "level": "INFO", "logger": "app.services.cache_service", "message": "Redis connected: redis://localhost:6379/0"}
+{"asctime": "2026-03-23 16:35:17,424", "level": "INFO", "logger": "main", "message": "VitaPulse AI v1.0.0 started"}
+{"asctime": "2026-03-23 16:35:17,424", "level": "INFO", "logger": "main", "message": "API docs: http://localhost:8000/docs"}
+{"asctime": "2026-03-23 16:35:20,267", "level": "INFO", "logger": "app.services.reminder_worker", "message": "[ReminderWorker] Scheduler stopped."}
+{"asctime": "2026-03-23 16:35:20,268", "level": "INFO", "logger": "main", "message": "VitaPulse AI shut down"}
