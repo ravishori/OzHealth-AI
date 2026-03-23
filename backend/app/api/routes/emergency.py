@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from app.core.log_decorator import LoggedAPIRoute
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import Optional
@@ -16,7 +17,7 @@ from app.schemas.emergency import (
 )
 from app.services.notification_service import NotificationService
 
-router = APIRouter()
+router = APIRouter(route_class=LoggedAPIRoute)
 
 
 @router.get("/contacts", response_model=list[EmergencyContactResponse])

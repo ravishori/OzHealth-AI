@@ -240,7 +240,7 @@ class _MedicineSearchScreenState extends State<MedicineSearchScreen> {
             Container(
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
-                color: AppTheme.primary.withOpacity(0.08),
+                color: const Color(0x1400897B),
                 shape: BoxShape.circle,
               ),
               child: const Icon(Icons.medication, color: AppTheme.primary, size: 56),
@@ -313,7 +313,7 @@ class _MedicineCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: AppTheme.primary.withOpacity(0.1),
+                  color: const Color(0x1A00897B),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: const Icon(Icons.medication, color: AppTheme.primary, size: 24),
@@ -339,7 +339,7 @@ class _MedicineCard extends StatelessWidget {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
-                              color: AppTheme.success.withOpacity(0.12),
+                              color: const Color(0x1E388E3C),
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: const Text(
@@ -369,7 +369,7 @@ class _MedicineCard extends StatelessWidget {
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                               decoration: BoxDecoration(
-                                color: AppTheme.primary.withOpacity(0.08),
+                                color: const Color(0x1400897B),
                                 borderRadius: BorderRadius.circular(20),
                               ),
                               child: Text(
@@ -381,7 +381,7 @@ class _MedicineCard extends StatelessWidget {
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                               decoration: BoxDecoration(
-                                color: AppTheme.accent.withOpacity(0.1),
+                                color: const Color(0x1AFF6F00),
                                 borderRadius: BorderRadius.circular(20),
                               ),
                               child: Text(

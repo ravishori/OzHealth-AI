@@ -1,3 +1,4 @@
+import 'package:vitapulse_ai/core/utils/error_handler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vitapulse_ai/features/health_monitoring/data/health_api.dart';
 
@@ -41,7 +42,7 @@ class HealthNotifier extends StateNotifier<HealthState> {
       final data = await HealthApi.getSummary(familyMemberId: familyMemberId);
       state = state.copyWith(summary: data, isLoading: false);
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(isLoading: false, error: ErrorHandler.getMessage(e));
     }
   }
 
@@ -57,7 +58,7 @@ class HealthNotifier extends StateNotifier<HealthState> {
         history: {...state.history, metricType: data},
       );
     } catch (e) {
-      state = state.copyWith(error: e.toString());
+      state = state.copyWith(error: ErrorHandler.getMessage(e));
     }
   }
 
@@ -93,7 +94,7 @@ class HealthNotifier extends StateNotifier<HealthState> {
       );
       return true;
     } catch (e) {
-      state = state.copyWith(isLogging: false, error: e.toString());
+      state = state.copyWith(isLogging: false, error: ErrorHandler.getMessage(e));
       return false;
     }
   }

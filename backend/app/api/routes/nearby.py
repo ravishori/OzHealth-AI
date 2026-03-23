@@ -1,11 +1,13 @@
 from fastapi import APIRouter, Depends, Query
+from app.core.log_decorator import LoggedAPIRoute
 from app.core.deps import get_current_user
 from app.models.user import User
+from app.services.cache_service import CacheService, NEARBY_TTL
 import httpx
 
-router = APIRouter()
+router = APIRouter(route_class=LoggedAPIRoute)
 
-# Uses OpenStreetMap Nominatim (free, no API key required)
+# Uses OpenStreetMap Overpass API (free, no API key required)
 OVERPASS_URL = "https://overpass-api.de/api/interpreter"
 
 
@@ -17,6 +19,12 @@ async def get_nearby(
     radius: int = Query(5000, le=20000),
     current_user: User = Depends(get_current_user),
 ):
+    # Cache key — round lat/lng to 2 decimal places (~1 km precision)
+    cache_key = f"nearby:{lat:.2f}:{lng:.2f}:{type}:{radius}"
+    cached = await CacheService.get(cache_key)
+    if cached is not None:
+        return cached
+
     osm_tags = {
         "hospital": 'amenity~"hospital|clinic"',
         "pharmacy": 'amenity="pharmacy"',
@@ -50,7 +58,9 @@ async def get_nearby(
                 "website": tags.get("website", tags.get("contact:website")),
             })
 
-        return {"results": results, "count": len(results), "type": type}
+        response = {"results": results, "count": len(results), "type": type}
+        await CacheService.set(cache_key, response, ttl=NEARBY_TTL)
+        return response
 
     except Exception as e:
         return {"results": [], "count": 0, "error": str(e)}

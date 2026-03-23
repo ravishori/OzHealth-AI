@@ -189,7 +189,7 @@ class _FamilyScreenState extends State<FamilyScreen> {
         .join();
     return CircleAvatar(
       radius: 26,
-      backgroundColor: AppTheme.primary.withOpacity(0.15),
+      backgroundColor: const Color(0x2600897B),
       child: Text(
         initials,
         style: const TextStyle(
@@ -245,8 +245,8 @@ class _FamilyScreenState extends State<FamilyScreen> {
                   (item) => Chip(
                     label: Text(item,
                         style: TextStyle(color: color, fontSize: 12)),
-                    backgroundColor: color.withOpacity(0.1),
-                    side: BorderSide(color: color.withOpacity(0.3)),
+                    backgroundColor: Color.fromRGBO(color.red, color.green, color.blue, 0.1),
+                    side: BorderSide(color: Color.fromRGBO(color.red, color.green, color.blue, 0.3)),
                     materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     padding:
                         const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
@@ -294,7 +294,7 @@ class _FamilyScreenState extends State<FamilyScreen> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(Icons.family_restroom,
-              size: 72, color: AppTheme.primary.withOpacity(0.4)),
+              size: 72, color: const Color(0x6600897B)),
           const SizedBox(height: 16),
           const Text('No family members yet',
               style: TextStyle(

@@ -32,7 +32,7 @@ class _RecordsScreenState extends State<RecordsScreen>
     _tabController.addListener(() {
       if (!_tabController.indexIsChanging) _loadRecords();
     });
-    _loadRecords();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadRecords());
   }
 
   @override
@@ -185,8 +185,8 @@ class _RecordsScreenState extends State<RecordsScreen>
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.folder_open_outlined,
-              size: 64, color: AppTheme.primary.withOpacity(0.4)),
+          const Icon(Icons.folder_open_outlined,
+              size: 64, color: Color(0x6600897B)), // primary @ 40% opacity
           const SizedBox(height: 16),
           const Text('No records found',
               style: TextStyle(
@@ -230,7 +230,7 @@ class _RecordsScreenState extends State<RecordsScreen>
           width: 46,
           height: 46,
           decoration: BoxDecoration(
-            color: color.withOpacity(0.12),
+            color: Color.fromRGBO(color.red, color.green, color.blue, 0.12),
             borderRadius: BorderRadius.circular(10),
           ),
           child: Icon(icon, color: color, size: 22),
@@ -273,7 +273,7 @@ class _RecordsScreenState extends State<RecordsScreen>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
+        color: Color.fromRGBO(color.red, color.green, color.blue, 0.12),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(

@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from app.core.log_decorator import LoggedAPIRoute
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from pydantic import BaseModel
@@ -12,7 +13,7 @@ from app.models.user import User
 from app.models.ai_conversation import AIConversation
 from app.services.ai_service import chat_with_health_assistant
 
-router = APIRouter()
+router = APIRouter(route_class=LoggedAPIRoute)
 
 
 class ChatMessage(BaseModel):

@@ -1,3 +1,4 @@
+import 'package:vitapulse_ai/core/utils/error_handler.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:vitapulse_ai/core/network/api_client.dart';
@@ -18,7 +19,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
   @override
   void initState() {
     super.initState();
-    _loadReminders();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadReminders());
   }
 
   Future<void> _loadReminders() async {
@@ -199,7 +200,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
             Container(
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
-                color: AppTheme.primary.withOpacity(0.08),
+                color: const Color(0x1400897B),
                 shape: BoxShape.circle,
               ),
               child: const Icon(Icons.alarm_off, color: AppTheme.primary, size: 56),
@@ -321,8 +322,8 @@ class _ReminderCard extends StatelessWidget {
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
                 color: isActive
-                    ? AppTheme.primary.withOpacity(0.1)
-                    : Colors.grey.withOpacity(0.1),
+                    ? const Color(0x1A00897B)
+                    : const Color(0x1A9E9E9E),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(
@@ -394,7 +395,7 @@ class _Chip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: Color.fromRGBO(color.red, color.green, color.blue, 0.1),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(

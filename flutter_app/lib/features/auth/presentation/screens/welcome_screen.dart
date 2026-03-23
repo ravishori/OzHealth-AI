@@ -109,7 +109,7 @@ class _FeatureRow extends StatelessWidget {
         Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.15),
+            color: const Color(0x26FFFFFF),
             borderRadius: BorderRadius.circular(10),
           ),
           child: Icon(icon, color: Colors.white, size: 20),

@@ -1,3 +1,4 @@
+import 'package:vitapulse_ai/core/utils/error_handler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vitapulse_ai/features/emergency/data/emergency_api.dart';
 
@@ -41,7 +42,7 @@ class EmergencyNotifier extends StateNotifier<EmergencyState> {
       final data = await EmergencyApi.getContacts();
       state = state.copyWith(contacts: data, isLoading: false);
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(isLoading: false, error: ErrorHandler.getMessage(e));
     }
   }
 
@@ -51,7 +52,7 @@ class EmergencyNotifier extends StateNotifier<EmergencyState> {
       state = state.copyWith(contacts: [...state.contacts, contact]);
       return true;
     } catch (e) {
-      state = state.copyWith(error: e.toString());
+      state = state.copyWith(error: ErrorHandler.getMessage(e));
       return false;
     }
   }
@@ -64,7 +65,7 @@ class EmergencyNotifier extends StateNotifier<EmergencyState> {
       );
       return true;
     } catch (e) {
-      state = state.copyWith(error: e.toString());
+      state = state.copyWith(error: ErrorHandler.getMessage(e));
       return false;
     }
   }
@@ -87,7 +88,7 @@ class EmergencyNotifier extends StateNotifier<EmergencyState> {
       );
       return result;
     } catch (e) {
-      state = state.copyWith(isSendingSOS: false, error: e.toString());
+      state = state.copyWith(isSendingSOS: false, error: ErrorHandler.getMessage(e));
       return null;
     }
   }

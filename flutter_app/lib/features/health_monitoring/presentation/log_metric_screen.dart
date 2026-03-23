@@ -1,3 +1,4 @@
+import 'package:vitapulse_ai/core/utils/error_handler.dart';
 import 'package:flutter/material.dart';
 import 'package:vitapulse_ai/core/network/api_client.dart';
 import 'package:vitapulse_ai/core/theme/app_theme.dart';
@@ -305,7 +306,7 @@ class _LogMetricScreenState extends State<LogMetricScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(
-                color: AppTheme.primary.withOpacity(0.1),
+                color: const Color(0x1A00897B),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Text(

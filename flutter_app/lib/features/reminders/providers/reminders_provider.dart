@@ -1,3 +1,4 @@
+import 'package:vitapulse_ai/core/utils/error_handler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vitapulse_ai/features/reminders/data/reminder_api.dart';
 
@@ -33,7 +34,7 @@ class RemindersNotifier extends StateNotifier<RemindersState> {
       final data = await ReminderApi.getReminders();
       state = state.copyWith(reminders: data, isLoading: false);
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(isLoading: false, error: ErrorHandler.getMessage(e));
     }
   }
 
@@ -43,7 +44,7 @@ class RemindersNotifier extends StateNotifier<RemindersState> {
       state = state.copyWith(reminders: [reminder, ...state.reminders]);
       return true;
     } catch (e) {
-      state = state.copyWith(error: e.toString());
+      state = state.copyWith(error: ErrorHandler.getMessage(e));
       return false;
     }
   }
@@ -58,7 +59,7 @@ class RemindersNotifier extends StateNotifier<RemindersState> {
       );
       return true;
     } catch (e) {
-      state = state.copyWith(error: e.toString());
+      state = state.copyWith(error: ErrorHandler.getMessage(e));
       return false;
     }
   }
@@ -76,7 +77,7 @@ class RemindersNotifier extends StateNotifier<RemindersState> {
       );
       return true;
     } catch (e) {
-      state = state.copyWith(error: e.toString());
+      state = state.copyWith(error: ErrorHandler.getMessage(e));
       return false;
     }
   }
@@ -89,7 +90,7 @@ class RemindersNotifier extends StateNotifier<RemindersState> {
       );
       return true;
     } catch (e) {
-      state = state.copyWith(error: e.toString());
+      state = state.copyWith(error: ErrorHandler.getMessage(e));
       return false;
     }
   }

@@ -1,0 +1,14 @@
+to run python project
+cd D:\ravishori\OzHealth-AI\backend
+D:
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+
+
+---------------------------------------
+# Flutter (in a new terminal)
+cd D:\ravishori\OzHealth-AI\flutter_app
+
+flutter clean
+flutter pub get
+flutter run

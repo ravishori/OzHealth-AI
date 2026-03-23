@@ -1,6 +1,7 @@
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text
 from sqlalchemy.sql import func
 from app.core.database import Base
+from app.services.encryption_service import EncryptedText
 
 
 class User(Base):
@@ -13,9 +14,9 @@ class User(Base):
     age = Column(Integer, nullable=True)
     gender = Column(String(20), nullable=True)
     blood_group = Column(String(10), nullable=True)
-    health_conditions = Column(Text, nullable=True)  # JSON array
-    allergies = Column(Text, nullable=True)  # JSON array
-    lifestyle_preferences = Column(Text, nullable=True)  # JSON object
+    health_conditions = Column(EncryptedText, nullable=True)   # encrypted JSON array
+    allergies = Column(EncryptedText, nullable=True)           # encrypted JSON array
+    lifestyle_preferences = Column(EncryptedText, nullable=True)  # encrypted JSON object
     fcm_token = Column(String(500), nullable=True)
     is_active = Column(Boolean, default=True)
     is_verified = Column(Boolean, default=False)

@@ -37,7 +37,7 @@ class _EmergencyScreenState extends State<EmergencyScreen>
     _pulseAnimation = Tween<double>(begin: 1.0, end: 1.12).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
-    _loadContacts();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadContacts());
   }
 
   @override
@@ -271,9 +271,9 @@ class _EmergencyScreenState extends State<EmergencyScreen>
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: AppTheme.emergencyRed,
-                boxShadow: [
+                boxShadow: const [
                   BoxShadow(
-                    color: AppTheme.emergencyRed.withOpacity(0.45),
+                    color: Color(0x73E53935), // emergencyRed @ 45% opacity
                     blurRadius: 30,
                     spreadRadius: 8,
                   ),
@@ -398,7 +398,7 @@ class _EmergencyScreenState extends State<EmergencyScreen>
             children: [
               Container(
                 width: double.infinity,
-                color: AppTheme.emergencyRed.withOpacity(0.04),
+                color: const Color(0x0AE53935), // emergencyRed @ 4% opacity
                 padding: const EdgeInsets.symmetric(vertical: 32),
                 child: _buildSOSButton(),
               ),
@@ -466,7 +466,7 @@ class _AuNumberTile extends StatelessWidget {
         leading: Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: AppTheme.emergencyRed.withOpacity(0.1),
+            color: const Color(0x1AE53935), // emergencyRed @ 10% opacity
             borderRadius: BorderRadius.circular(8),
           ),
           child: Icon(number.icon, color: AppTheme.emergencyRed, size: 22),
@@ -503,7 +503,7 @@ class _ContactTile extends StatelessWidget {
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: ListTile(
         leading: CircleAvatar(
-          backgroundColor: AppTheme.primary.withOpacity(0.15),
+          backgroundColor: const Color(0x2600897B), // primary @ 15% opacity
           child: Text(
             contact.name.isNotEmpty ? contact.name[0].toUpperCase() : '?',
             style: const TextStyle(

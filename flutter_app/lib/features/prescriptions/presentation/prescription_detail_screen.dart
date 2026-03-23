@@ -134,7 +134,7 @@ class _PrescriptionDetailScreenState extends State<PrescriptionDetailScreen> {
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: AppTheme.secondary.withOpacity(0.12),
+                    color: const Color(0x1E1565C0),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: const Icon(Icons.description_outlined,
@@ -238,7 +238,7 @@ class _PrescriptionDetailScreenState extends State<PrescriptionDetailScreen> {
                 Container(
                   padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
-                    color: AppTheme.secondary.withOpacity(0.12),
+                    color: const Color(0x1E1565C0),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: const Icon(Icons.psychology_outlined,
@@ -255,7 +255,7 @@ class _PrescriptionDetailScreenState extends State<PrescriptionDetailScreen> {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
-                    color: AppTheme.secondary.withOpacity(0.1),
+                    color: const Color(0x1A1565C0),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: const Text(

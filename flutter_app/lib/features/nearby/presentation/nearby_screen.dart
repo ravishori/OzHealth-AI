@@ -40,7 +40,7 @@ class _NearbyScreenState extends State<NearbyScreen>
     super.initState();
     _tabController = TabController(length: 3, vsync: this)
       ..addListener(_onTabChanged);
-    _initLocation();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _initLocation());
   }
 
   @override
@@ -269,7 +269,7 @@ class _NearbyScreenState extends State<NearbyScreen>
                   padding:
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: AppTheme.primary.withOpacity(0.1),
+                    color: const Color(0x1A00897B), // primary @ 10% opacity
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(

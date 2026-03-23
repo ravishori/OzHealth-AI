@@ -21,7 +21,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
-    _loadProfile();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadProfile());
   }
 
   Future<void> _loadProfile() async {
@@ -511,9 +511,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         label: Text(item,
                             style: TextStyle(
                                 color: chipColor, fontSize: 12)),
-                        backgroundColor: chipColor.withOpacity(0.1),
+                        backgroundColor: Color.fromRGBO(chipColor.red, chipColor.green, chipColor.blue, 0.1),
                         side: BorderSide(
-                            color: chipColor.withOpacity(0.3)),
+                            color: Color.fromRGBO(chipColor.red, chipColor.green, chipColor.blue, 0.3)),
                         padding: const EdgeInsets.symmetric(
                             horizontal: 4, vertical: 0),
                         materialTapTargetSize:

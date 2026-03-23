@@ -1,3 +1,4 @@
+import 'package:vitapulse_ai/core/utils/error_handler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vitapulse_ai/features/ai_assistant/data/ai_api.dart';
 
@@ -40,7 +41,7 @@ class AiChatNotifier extends StateNotifier<AiChatState> {
           .toList();
       state = state.copyWith(conversationId: id, messages: msgs);
     } catch (e) {
-      state = state.copyWith(error: e.toString());
+      state = state.copyWith(error: ErrorHandler.getMessage(e));
     }
   }
 
@@ -82,7 +83,7 @@ class AiChatNotifier extends StateNotifier<AiChatState> {
             .where((m) => !identical(m, userMsg))
             .toList(),
         isTyping: false,
-        error: e.toString(),
+        error: ErrorHandler.getMessage(e),
       );
     }
   }

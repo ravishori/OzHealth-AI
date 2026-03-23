@@ -100,7 +100,7 @@ class AppTheme {
           labelLarge: TextStyle(color: textPrimary, fontWeight: FontWeight.w600, fontSize: 14),
         ),
         chipTheme: ChipThemeData(
-          backgroundColor: primary.withOpacity(0.1),
+          backgroundColor: const Color(0x1A00897B), // primary @ 10% opacity
           labelStyle: const TextStyle(color: primary, fontSize: 12),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         ),

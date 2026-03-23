@@ -1,0 +1,4 @@
+{"asctime": "2026-03-23 13:45:21,693", "level": "DEBUG", "logger": "vitapulse.functions", "message": "ENTER send_otp", "fn": "send_otp", "method": "POST", "path": "/api/v1/auth/send-otp", "status": "enter"}
+{"asctime": "2026-03-23 13:45:21,695", "level": "DEBUG", "logger": "vitapulse.functions", "message": "ENTER app.api.routes.auth._sp_insert_otp", "fn": "app.api.routes.auth._sp_insert_otp", "status": "enter"}
+{"asctime": "2026-03-23 13:45:21,748", "level": "INFO", "logger": "vitapulse.functions", "message": "OK app.api.routes.auth._sp_insert_otp (52.3 ms)", "fn": "app.api.routes.auth._sp_insert_otp", "status": "ok", "duration_ms": 52.3}
+{"asctime": "2026-03-23 13:45:26,195", "level": "INFO", "logger": "vitapulse.functions", "message": "OK send_otp (4502.5 ms)", "fn": "send_otp", "status": "ok", "duration_ms": 4502.5}

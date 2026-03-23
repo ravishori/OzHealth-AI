@@ -99,7 +99,7 @@ class _UploadRecordScreenState extends State<UploadRecordScreen> {
                 leading: Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: AppTheme.primary.withOpacity(0.1),
+                    color: const Color(0x1A00897B),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: const Icon(Icons.image_outlined,
@@ -116,7 +116,7 @@ class _UploadRecordScreenState extends State<UploadRecordScreen> {
                 leading: Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: AppTheme.error.withOpacity(0.1),
+                    color: const Color(0x1AD32F2F),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child:
@@ -357,10 +357,10 @@ class _UploadRecordScreenState extends State<UploadRecordScreen> {
     return Container(
       height: 150,
       decoration: BoxDecoration(
-        color: AppTheme.primary.withOpacity(0.04),
+        color: const Color(0x0A00897B),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: AppTheme.primary.withOpacity(0.4),
+          color: const Color(0x6600897B),
           style: BorderStyle.solid,
           width: 1.5,
         ),
@@ -397,10 +397,10 @@ class _UploadRecordScreenState extends State<UploadRecordScreen> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-            color: AppTheme.primary.withOpacity(0.4), width: 1.5),
+            color: const Color(0x6600897B), width: 1.5),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withOpacity(0.05), blurRadius: 6),
+              color: const Color(0x0D000000), blurRadius: 6),
         ],
       ),
       child: Column(
@@ -420,7 +420,7 @@ class _UploadRecordScreenState extends State<UploadRecordScreen> {
             Container(
               height: 100,
               decoration: BoxDecoration(
-                color: AppTheme.error.withOpacity(0.06),
+                color: const Color(0x0FD32F2F),
                 borderRadius: const BorderRadius.vertical(
                     top: Radius.circular(10)),
               ),
@@ -471,7 +471,7 @@ class _UploadRecordScreenState extends State<UploadRecordScreen> {
                   child: Container(
                     padding: const EdgeInsets.all(4),
                     decoration: BoxDecoration(
-                      color: AppTheme.error.withOpacity(0.1),
+                      color: const Color(0x1AD32F2F),
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(Icons.close,

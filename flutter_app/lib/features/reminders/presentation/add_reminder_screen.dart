@@ -1,3 +1,4 @@
+import 'package:vitapulse_ai/core/utils/error_handler.dart';
 import 'package:flutter/material.dart';
 import 'package:vitapulse_ai/core/network/api_client.dart';
 import 'package:vitapulse_ai/core/theme/app_theme.dart';

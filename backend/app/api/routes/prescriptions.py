@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from app.core.log_decorator import LoggedAPIRoute
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import Optional
@@ -13,7 +14,7 @@ from app.utils.storage import save_file
 from app.services.ocr_service import extract_prescription_text
 from app.services.ai_service import analyze_prescription
 
-router = APIRouter()
+router = APIRouter(route_class=LoggedAPIRoute)
 
 
 @router.post("/scan")
@@ -60,9 +61,9 @@ async def scan_prescription(
     await db.commit()
     await db.refresh(prescription)
 
+    # raw_text intentionally excluded — sensitive OCR content not returned to client
     return {
         "id": prescription.id,
-        "raw_text": raw_text,
         "medicines": ai_result.get("medicines", []),
         "doctor_name": ai_result.get("doctor_name"),
         "hospital": ai_result.get("hospital"),

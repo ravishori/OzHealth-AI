@@ -164,7 +164,7 @@ class _MedicineDetailScreenState extends State<MedicineDetailScreen> {
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: AppTheme.primary.withOpacity(0.1),
+                        color: const Color(0x1A00897B),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: const Icon(Icons.medication, color: AppTheme.primary, size: 32),
@@ -317,7 +317,7 @@ class _MedicineDetailScreenState extends State<MedicineDetailScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 8, offset: const Offset(0, -2)),
+          BoxShadow(color: const Color(0x14000000), blurRadius: 8, offset: const Offset(0, -2)),
         ],
       ),
       child: LoadingButton(
@@ -359,7 +359,7 @@ class _SectionTile extends StatelessWidget {
           leading: Container(
             padding: const EdgeInsets.all(6),
             decoration: BoxDecoration(
-              color: (iconColor ?? AppTheme.primary).withOpacity(0.1),
+              color: Color.fromRGBO((iconColor ?? AppTheme.primary).red, (iconColor ?? AppTheme.primary).green, (iconColor ?? AppTheme.primary).blue, 0.1),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(icon, color: iconColor ?? AppTheme.primary, size: 18),
@@ -400,9 +400,9 @@ class _Badge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: Color.fromRGBO(color.red, color.green, color.blue, 0.1),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: Color.fromRGBO(color.red, color.green, color.blue, 0.3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

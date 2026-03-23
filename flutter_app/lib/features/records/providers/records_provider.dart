@@ -1,3 +1,4 @@
+import 'package:vitapulse_ai/core/utils/error_handler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vitapulse_ai/features/records/data/records_api.dart';
 
@@ -40,7 +41,7 @@ class RecordsNotifier extends StateNotifier<RecordsState> {
       );
       state = state.copyWith(records: data, isLoading: false);
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(isLoading: false, error: ErrorHandler.getMessage(e));
     }
   }
 
@@ -68,7 +69,7 @@ class RecordsNotifier extends StateNotifier<RecordsState> {
       );
       return true;
     } catch (e) {
-      state = state.copyWith(isUploading: false, error: e.toString());
+      state = state.copyWith(isUploading: false, error: ErrorHandler.getMessage(e));
       return false;
     }
   }
@@ -81,7 +82,7 @@ class RecordsNotifier extends StateNotifier<RecordsState> {
       );
       return true;
     } catch (e) {
-      state = state.copyWith(error: e.toString());
+      state = state.copyWith(error: ErrorHandler.getMessage(e));
       return false;
     }
   }

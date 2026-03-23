@@ -107,7 +107,7 @@ class _AiChatScreenState extends State<AiChatScreen>
             width: 90,
             height: 90,
             decoration: BoxDecoration(
-              color: AppTheme.primary.withOpacity(0.12),
+              color: const Color(0x1E00897B),
               shape: BoxShape.circle,
             ),
             child: const Icon(Icons.psychology_outlined,
@@ -168,7 +168,7 @@ class _AiChatScreenState extends State<AiChatScreen>
           ),
           boxShadow: [
             BoxShadow(
-                color: Colors.black.withOpacity(0.07),
+                color: const Color(0x12000000),
                 blurRadius: 6,
                 offset: const Offset(0, 2))
           ],
@@ -188,7 +188,7 @@ class _AiChatScreenState extends State<AiChatScreen>
                   height: 8,
                   transform: Matrix4.translationValues(0, -bounce * 6, 0),
                   decoration: BoxDecoration(
-                    color: AppTheme.primary.withOpacity(0.7),
+                    color: const Color(0xB300897B),
                     shape: BoxShape.circle,
                   ),
                 );
@@ -217,7 +217,7 @@ class _AiChatScreenState extends State<AiChatScreen>
           color: isUser
               ? AppTheme.primary
               : (msg.isError
-                  ? AppTheme.emergencyRed.withOpacity(0.08)
+                  ? const Color(0x14E53935)
                   : Colors.white),
           borderRadius: BorderRadius.only(
             topLeft: const Radius.circular(18),
@@ -227,7 +227,7 @@ class _AiChatScreenState extends State<AiChatScreen>
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.07),
+              color: const Color(0x12000000),
               blurRadius: 6,
               offset: const Offset(0, 2),
             )
@@ -389,8 +389,8 @@ class _SuggestionChip extends StatelessWidget {
         label,
         style: const TextStyle(fontSize: 12, color: AppTheme.primary),
       ),
-      backgroundColor: AppTheme.primary.withOpacity(0.09),
-      side: BorderSide(color: AppTheme.primary.withOpacity(0.3)),
+      backgroundColor: const Color(0x1700897B),
+      side: BorderSide(color: const Color(0x4D00897B)),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       onPressed: onTap,
     );

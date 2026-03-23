@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:vitapulse_ai/core/utils/error_handler.dart';
 
 const String _baseUrl = 'http://10.0.2.2:8000/api/v1';
 const _storage = FlutterSecureStorage();
@@ -11,7 +12,8 @@ class ApiClient {
     final dio = Dio(BaseOptions(
       baseUrl: _baseUrl,
       connectTimeout: const Duration(seconds: 15),
-      receiveTimeout: const Duration(seconds: 30),
+      receiveTimeout: const Duration(seconds: 60), // OTP send includes SMTP — allow up to 60 s
+      sendTimeout: const Duration(seconds: 30),
       headers: {'Content-Type': 'application/json'},
     ));
 
@@ -23,18 +25,38 @@ class ApiClient {
         }
         handler.next(options);
       },
+
       onError: (error, handler) async {
+        // ── 401: attempt token refresh then retry ────────────────────────────
         if (error.response?.statusCode == 401) {
           final refreshed = await _refreshToken();
           if (refreshed) {
             final token = await _storage.read(key: 'access_token');
             error.requestOptions.headers['Authorization'] = 'Bearer $token';
-            final response = await _dio.fetch(error.requestOptions);
-            handler.resolve(response);
-            return;
+            try {
+              final response = await _dio.fetch(error.requestOptions);
+              handler.resolve(response);
+              return;
+            } catch (_) {
+              // Refresh succeeded but retry failed — fall through to error
+            }
           }
         }
-        handler.next(error);
+
+        // ── All other errors: convert to friendly AppError ───────────────────
+        // This ensures every caller's catch(e) block sees a clean message
+        // rather than a raw "DioException [bad response]: ..." string.
+        handler.next(
+          DioException(
+            requestOptions: error.requestOptions,
+            response: error.response,
+            type: error.type,
+            error: AppError(
+              ErrorHandler.getMessage(error),
+              statusCode: error.response?.statusCode,
+            ),
+          ),
+        );
       },
     ));
 
@@ -51,8 +73,10 @@ class ApiClient {
         data: {'refresh_token': refreshToken},
       );
 
-      await _storage.write(key: 'access_token', value: resp.data['access_token']);
-      await _storage.write(key: 'refresh_token', value: resp.data['refresh_token']);
+      await _storage.write(
+          key: 'access_token', value: resp.data['access_token']);
+      await _storage.write(
+          key: 'refresh_token', value: resp.data['refresh_token']);
       return true;
     } catch (_) {
       return false;
@@ -61,7 +85,8 @@ class ApiClient {
 
   static Dio get instance => _dio;
 
-  static Future<Response> get(String path, {Map<String, dynamic>? queryParameters}) =>
+  static Future<Response> get(String path,
+          {Map<String, dynamic>? queryParameters}) =>
       _dio.get(path, queryParameters: queryParameters);
 
   static Future<Response> post(String path, {dynamic data}) =>
@@ -73,6 +98,7 @@ class ApiClient {
   static Future<Response> delete(String path) => _dio.delete(path);
 
   static Future<Response> uploadFile(String path, FormData formData) =>
-      _dio.post(path, data: formData,
-        options: Options(contentType: 'multipart/form-data'));
+      _dio.post(path,
+          data: formData,
+          options: Options(contentType: 'multipart/form-data'));
 }

@@ -1,6 +1,7 @@
 from sqlalchemy import Column, Integer, String, ForeignKey, Text, DateTime, Boolean
 from sqlalchemy.sql import func
 from app.core.database import Base
+from app.services.encryption_service import EncryptedText
 
 
 class MedicalRecord(Base):
@@ -15,7 +16,7 @@ class MedicalRecord(Base):
     file_name = Column(String(500), nullable=False)
     file_size = Column(Integer, nullable=True)
     file_type = Column(String(50), nullable=True)  # pdf, jpg, png
-    notes = Column(Text, nullable=True)
+    notes = Column(EncryptedText, nullable=True)   # encrypted clinical notes
     record_date = Column(DateTime(timezone=True), nullable=True)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

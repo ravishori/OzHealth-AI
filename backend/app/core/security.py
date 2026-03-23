@@ -43,3 +43,24 @@ def hash_password(password: str) -> str:
 
 def verify_password(plain: str, hashed: str) -> bool:
     return pwd_context.verify(plain, hashed)
+
+
+# OTP hashing — use HMAC-SHA256 (bcrypt is overkill for short-lived 6-digit codes
+# that are already protected by rate limiting and 10-minute expiry)
+import hashlib
+import hmac as _hmac
+
+
+def hash_otp(otp_code: str) -> str:
+    """
+    Hash an OTP code with HMAC-SHA256 keyed by SECRET_KEY.
+    Returns a hex digest that is safe to store in the DB.
+    """
+    key = settings.SECRET_KEY.encode("utf-8")
+    return _hmac.new(key, otp_code.encode("utf-8"), hashlib.sha256).hexdigest()
+
+
+def verify_otp(plain_otp: str, stored_hash: str) -> bool:
+    """Constant-time comparison of OTP hash to prevent timing attacks."""
+    expected = hash_otp(plain_otp)
+    return _hmac.compare_digest(expected, stored_hash)

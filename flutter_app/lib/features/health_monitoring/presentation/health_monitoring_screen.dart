@@ -62,7 +62,7 @@ class _HealthMonitoringScreenState extends State<HealthMonitoringScreen> {
   @override
   void initState() {
     super.initState();
-    _loadSummary();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadSummary());
   }
 
   Future<void> _loadSummary() async {
@@ -237,7 +237,7 @@ class _HealthMonitoringScreenState extends State<HealthMonitoringScreen> {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: config.color.withOpacity(0.1),
+                    color: Color.fromRGBO(config.color.red, config.color.green, config.color.blue, 0.1),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Icon(config.icon, color: config.color, size: 22),
@@ -315,7 +315,7 @@ class _HealthMonitoringScreenState extends State<HealthMonitoringScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: _statusColor(status).withOpacity(0.1),
+                  color: Color.fromRGBO(_statusColor(status).red, _statusColor(status).green, _statusColor(status).blue, 0.1),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
@@ -442,7 +442,7 @@ class _MiniLineChart extends StatelessWidget {
             ),
             belowBarData: BarAreaData(
               show: true,
-              color: color.withOpacity(0.08),
+              color: Color.fromRGBO(color.red, color.green, color.blue, 0.08),
             ),
           ),
         ],

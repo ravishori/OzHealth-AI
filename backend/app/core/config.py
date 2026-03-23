@@ -27,17 +27,29 @@ class Settings(BaseSettings):
     DEBUG: bool = True
     CORS_ORIGINS: str = '["http://localhost:3000"]'
 
-  # Gmail SMTP
-    SMTP_EMAIL: str
-    SMTP_PASSWORD: str
-    SMTP_SERVER: str
-    SMTP_PORT: int
+    # Gmail SMTP
+    SMTP_EMAIL: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_SERVER: str = "smtp.gmail.com"
+    SMTP_PORT: int = 587
 
     # Twilio
-    TWILIO_ACCOUNT_SID: str
-    TWILIO_AUTH_TOKEN: str
-    TWILIO_PHONE_NUMBER: str
+    TWILIO_ACCOUNT_SID: str = ""
+    TWILIO_AUTH_TOKEN: str = ""
+    TWILIO_PHONE_NUMBER: str = ""
 
+    # Redis — used for caching and rate limiting
+    REDIS_URL: str = "redis://localhost:6379/0"
+
+    # Field-level encryption key (Fernet: URL-safe base64 of 32-byte key)
+    # Generate with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+    ENCRYPTION_KEY: str = ""
+
+    # Rate limiting — OTP send (per identifier per window)
+    OTP_SEND_LIMIT: int = 20         # max OTP sends (relaxed for dev)
+    OTP_SEND_WINDOW: int = 300       # seconds (5 min window)
+    OTP_VERIFY_LIMIT: int = 20       # max failed verifications (relaxed for dev)
+    OTP_VERIFY_WINDOW: int = 300     # seconds (5 min window)
 
     def get_cors_origins(self) -> List[str]:
         try:

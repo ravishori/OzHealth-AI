@@ -12,10 +12,39 @@ Usage:
 """
 
 import logging
+import os
 from typing import Optional
 from datetime import datetime, date
 
 logger = logging.getLogger(__name__)
+
+
+def validate_external_services():
+    """
+    Warn at startup if required external service credentials are missing.
+    Called from main.py on_startup.
+    """
+    from app.core.config import settings
+
+    if not settings.SMTP_EMAIL or not settings.SMTP_PASSWORD:
+        logger.warning(
+            "SMTP credentials (SMTP_EMAIL / SMTP_PASSWORD) not configured — "
+            "email OTP will not be sent."
+        )
+    if not settings.TWILIO_ACCOUNT_SID or not settings.TWILIO_AUTH_TOKEN:
+        logger.warning(
+            "Twilio credentials (TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN) not configured — "
+            "SMS OTP will not be sent."
+        )
+    if not os.getenv("FIREBASE_CREDENTIALS_PATH") and not settings.FIREBASE_CREDENTIALS_PATH:
+        logger.warning(
+            "FIREBASE_CREDENTIALS_PATH not set — push notifications disabled."
+        )
+    if not settings.ENCRYPTION_KEY:
+        logger.warning(
+            "ENCRYPTION_KEY not set — using derived key. "
+            "Set ENCRYPTION_KEY in .env for production security."
+        )
 
 # ─── Lazy FCM initialisation ─────────────────────────────────────────────────
 

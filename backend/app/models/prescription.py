@@ -1,6 +1,7 @@
 from sqlalchemy import Column, Integer, String, ForeignKey, Text, DateTime
 from sqlalchemy.sql import func
 from app.core.database import Base
+from app.services.encryption_service import EncryptedText
 
 
 class Prescription(Base):
@@ -13,7 +14,7 @@ class Prescription(Base):
     doctor_name = Column(String(255), nullable=True)
     hospital = Column(String(500), nullable=True)
     prescription_date = Column(DateTime(timezone=True), nullable=True)
-    raw_ocr_text = Column(Text, nullable=True)
-    extracted_medicines = Column(Text, nullable=True)  # JSON array of medicines
-    ai_summary = Column(Text, nullable=True)
+    raw_ocr_text = Column(EncryptedText, nullable=True)          # encrypted OCR output
+    extracted_medicines = Column(EncryptedText, nullable=True)   # encrypted JSON array
+    ai_summary = Column(EncryptedText, nullable=True)            # encrypted AI analysis
     created_at = Column(DateTime(timezone=True), server_default=func.now())

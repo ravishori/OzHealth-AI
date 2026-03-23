@@ -269,9 +269,9 @@ class _PrescriptionScanScreenState extends State<PrescriptionScanScreen> {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppTheme.primary.withOpacity(0.07),
+        color: const Color(0x1100897B),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.primary.withOpacity(0.2)),
+        border: Border.all(color: const Color(0x3300897B)),
       ),
       child: const Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -353,10 +353,10 @@ class _SourceCard extends StatelessWidget {
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: AppTheme.primary.withOpacity(0.3)),
+            border: Border.all(color: const Color(0x4D00897B)),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.06),
+                color: const Color(0x0F000000),
                 blurRadius: 8,
                 offset: const Offset(0, 2),
               )
@@ -368,7 +368,7 @@ class _SourceCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: AppTheme.primary.withOpacity(0.1),
+                  color: const Color(0x1A00897B),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(icon, color: AppTheme.primary, size: 32),

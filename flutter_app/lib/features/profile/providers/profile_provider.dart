@@ -1,3 +1,4 @@
+import 'package:vitapulse_ai/core/utils/error_handler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vitapulse_ai/features/profile/data/user_api.dart';
 
@@ -33,7 +34,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
       final data = await UserApi.getMe();
       state = state.copyWith(user: data, isLoading: false);
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(isLoading: false, error: ErrorHandler.getMessage(e));
     }
   }
 
@@ -43,7 +44,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
       state = state.copyWith(user: updated);
       return true;
     } catch (e) {
-      state = state.copyWith(error: e.toString());
+      state = state.copyWith(error: ErrorHandler.getMessage(e));
       return false;
     }
   }
@@ -55,7 +56,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
       state = state.copyWith(user: updatedUser);
       return true;
     } catch (e) {
-      state = state.copyWith(error: e.toString());
+      state = state.copyWith(error: ErrorHandler.getMessage(e));
       return false;
     }
   }

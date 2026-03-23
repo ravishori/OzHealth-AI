@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from app.core.log_decorator import LoggedAPIRoute
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 import json
@@ -10,7 +11,7 @@ from app.models.user import User
 from app.models.medication_schedule import MedicationSchedule
 from app.schemas.medication import MedicationScheduleCreate, MedicationScheduleUpdate, MedicationScheduleResponse
 
-router = APIRouter()
+router = APIRouter(route_class=LoggedAPIRoute)
 
 
 @router.get("/", response_model=list[MedicationScheduleResponse])

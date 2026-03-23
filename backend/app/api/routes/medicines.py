@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from app.core.log_decorator import LoggedAPIRoute
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, or_, func
 from typing import Optional
@@ -8,8 +9,9 @@ from app.core.deps import get_current_user
 from app.models.user import User
 from app.models.medicine import Medicine
 from app.services.ai_service import get_medicine_info_from_ai
+from app.services.cache_service import CacheService, MEDICINE_SEARCH_TTL, MEDICINE_DETAIL_TTL
 
-router = APIRouter()
+router = APIRouter(route_class=LoggedAPIRoute)
 
 
 @router.get("/search")
@@ -19,6 +21,11 @@ async def search_medicines(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    cache_key = f"medicines:search:{q.lower()}:{limit}"
+    cached = await CacheService.get(cache_key)
+    if cached is not None:
+        return cached
+
     result = await db.execute(
         select(Medicine).where(
             or_(
@@ -30,11 +37,14 @@ async def search_medicines(
     medicines = result.scalars().all()
 
     if not medicines:
-        # Fallback to AI for unknown medicines
         ai_info = await get_medicine_info_from_ai(q)
-        return {"results": [ai_info] if ai_info else [], "source": "ai"}
+        response = {"results": [ai_info] if ai_info else [], "source": "ai"}
+        # Don't cache AI fallback results (they may be imprecise)
+        return response
 
-    return {"results": [_to_dict(m) for m in medicines], "source": "database"}
+    response = {"results": [_to_dict(m) for m in medicines], "source": "database"}
+    await CacheService.set(cache_key, response, ttl=MEDICINE_SEARCH_TTL)
+    return response
 
 
 @router.get("/barcode/{barcode}")
@@ -56,11 +66,19 @@ async def get_medicine(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    cache_key = f"medicine:{medicine_id}"
+    cached = await CacheService.get(cache_key)
+    if cached is not None:
+        return cached
+
     result = await db.execute(select(Medicine).where(Medicine.id == medicine_id))
     medicine = result.scalar_one_or_none()
     if not medicine:
         raise HTTPException(status_code=404, detail="Medicine not found")
-    return _to_dict(medicine)
+
+    response = _to_dict(medicine)
+    await CacheService.set(cache_key, response, ttl=MEDICINE_DETAIL_TTL)
+    return response
 
 
 @router.get("/ai-info/{name}")

@@ -1,3 +1,4 @@
+import 'package:vitapulse_ai/core/utils/error_handler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vitapulse_ai/features/family/data/family_api.dart';
 
@@ -33,7 +34,7 @@ class FamilyNotifier extends StateNotifier<FamilyState> {
       final data = await FamilyApi.getMembers();
       state = state.copyWith(members: data, isLoading: false);
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(isLoading: false, error: ErrorHandler.getMessage(e));
     }
   }
 
@@ -43,7 +44,7 @@ class FamilyNotifier extends StateNotifier<FamilyState> {
       state = state.copyWith(members: [...state.members, member]);
       return true;
     } catch (e) {
-      state = state.copyWith(error: e.toString());
+      state = state.copyWith(error: ErrorHandler.getMessage(e));
       return false;
     }
   }
@@ -58,7 +59,7 @@ class FamilyNotifier extends StateNotifier<FamilyState> {
       );
       return true;
     } catch (e) {
-      state = state.copyWith(error: e.toString());
+      state = state.copyWith(error: ErrorHandler.getMessage(e));
       return false;
     }
   }
@@ -71,7 +72,7 @@ class FamilyNotifier extends StateNotifier<FamilyState> {
       );
       return true;
     } catch (e) {
-      state = state.copyWith(error: e.toString());
+      state = state.copyWith(error: ErrorHandler.getMessage(e));
       return false;
     }
   }

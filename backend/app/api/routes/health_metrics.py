@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends, Query
+from app.core.log_decorator import LoggedAPIRoute
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from typing import Optional, List
+from typing import Optional
 from datetime import datetime, timezone
 
 from app.core.database import get_db
@@ -9,8 +10,10 @@ from app.core.deps import get_current_user
 from app.models.user import User
 from app.models.health_metric import HealthMetric
 from app.schemas.health_metric import HealthMetricCreate, HealthMetricResponse
+from app.services.cache_service import CacheService, HEALTH_SUMMARY_TTL
+from app.core.logging_config import audit_log
 
-router = APIRouter()
+router = APIRouter(route_class=LoggedAPIRoute)
 
 METRIC_UNITS = {
     "blood_pressure_systolic": "mmHg",
@@ -44,6 +47,14 @@ async def log_metric(
     db.add(metric)
     await db.commit()
     await db.refresh(metric)
+
+    # Invalidate summary cache for this user
+    await CacheService.delete(f"metrics:summary:{current_user.id}")
+
+    audit_log.info(
+        "health_metric_logged",
+        extra={"user_id": current_user.id, "metric_type": data.metric_type},
+    )
     return metric
 
 
@@ -74,6 +85,14 @@ async def get_summary(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    cache_key = f"metrics:summary:{current_user.id}"
+    if family_member_id:
+        cache_key += f":fm{family_member_id}"
+
+    cached = await CacheService.get(cache_key)
+    if cached is not None:
+        return cached
+
     summary = {}
     for metric_type in METRIC_UNITS.keys():
         query = select(HealthMetric).where(
@@ -108,4 +127,5 @@ async def get_summary(
                 ],
             }
 
+    await CacheService.set(cache_key, summary, ttl=HEALTH_SUMMARY_TTL)
     return summary

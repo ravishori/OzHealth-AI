@@ -1,3 +1,4 @@
+import 'package:vitapulse_ai/core/utils/error_handler.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:vitapulse_ai/core/theme/app_theme.dart';
@@ -45,7 +46,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         });
       }
     } catch (e) {
-      _showError(e.toString());
+      _showError(ErrorHandler.getMessage(e));
     } finally {
       setState(() => _loading = false);
     }

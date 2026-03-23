@@ -53,5 +53,19 @@ class AuthApi {
     return data;
   }
 
+  /// Pre-validate an OTP without consuming it.
+  /// Returns normally on success; throws [AppError] on invalid/expired OTP.
+  static Future<void> verifyOtp(
+    String identifier,
+    String otpCode,
+    String purpose,
+  ) async {
+    await ApiClient.post('/auth/verify-otp', data: {
+      'identifier': identifier,
+      'otp_code': otpCode,
+      'purpose': purpose,
+    });
+  }
+
   static Future<void> logout() => AuthStorage.clearAll();
 }
