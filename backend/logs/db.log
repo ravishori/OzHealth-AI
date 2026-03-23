@@ -598,3 +598,91 @@
 {"asctime": "2026-03-23 13:54:33,361", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "SELECT * FROM fn_get_due_reminders($1)"}
 {"asctime": "2026-03-23 13:54:33,361", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "[cached since 300s ago] (5,)"}
 {"asctime": "2026-03-23 13:54:33,363", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "ROLLBACK"}
+{"asctime": "2026-03-23 13:59:33,369", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "BEGIN (implicit)"}
+{"asctime": "2026-03-23 13:59:33,370", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "SELECT * FROM fn_get_due_reminders($1)"}
+{"asctime": "2026-03-23 13:59:33,370", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "[cached since 600s ago] (5,)"}
+{"asctime": "2026-03-23 13:59:33,372", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "ROLLBACK"}
+{"asctime": "2026-03-23 14:04:33,400", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "BEGIN (implicit)"}
+{"asctime": "2026-03-23 14:04:33,401", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "SELECT * FROM fn_get_due_reminders($1)"}
+{"asctime": "2026-03-23 14:04:33,403", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "[cached since 900s ago] (5,)"}
+{"asctime": "2026-03-23 14:04:33,419", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "ROLLBACK"}
+{"asctime": "2026-03-23 14:09:33,372", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "BEGIN (implicit)"}
+{"asctime": "2026-03-23 14:09:33,380", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "SELECT * FROM fn_get_due_reminders($1)"}
+{"asctime": "2026-03-23 14:09:33,380", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "[cached since 1200s ago] (5,)"}
+{"asctime": "2026-03-23 14:09:33,385", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "ROLLBACK"}
+{"asctime": "2026-03-23 14:14:33,371", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "BEGIN (implicit)"}
+{"asctime": "2026-03-23 14:14:33,372", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "SELECT * FROM fn_get_due_reminders($1)"}
+{"asctime": "2026-03-23 14:14:33,372", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "[cached since 1500s ago] (5,)"}
+{"asctime": "2026-03-23 14:14:33,379", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "ROLLBACK"}
+{"asctime": "2026-03-23 14:19:33,375", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "BEGIN (implicit)"}
+{"asctime": "2026-03-23 14:19:33,376", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "SELECT * FROM fn_get_due_reminders($1)"}
+{"asctime": "2026-03-23 14:19:33,376", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "[cached since 1800s ago] (5,)"}
+{"asctime": "2026-03-23 14:19:33,378", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "ROLLBACK"}
+{"asctime": "2026-03-23 14:24:33,370", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "BEGIN (implicit)"}
+{"asctime": "2026-03-23 14:24:33,372", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "SELECT * FROM fn_get_due_reminders($1)"}
+{"asctime": "2026-03-23 14:24:33,372", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "[cached since 2100s ago] (5,)"}
+{"asctime": "2026-03-23 14:24:33,374", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "ROLLBACK"}
+{"asctime": "2026-03-23 14:39:33,362", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "BEGIN (implicit)"}
+{"asctime": "2026-03-23 14:39:33,364", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "SELECT * FROM fn_get_due_reminders($1)"}
+{"asctime": "2026-03-23 14:39:33,365", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "[cached since 3000s ago] (5,)"}
+{"asctime": "2026-03-23 14:39:33,367", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "ROLLBACK"}
+{"asctime": "2026-03-23 14:44:33,368", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "BEGIN (implicit)"}
+{"asctime": "2026-03-23 14:44:33,370", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "SELECT * FROM fn_get_due_reminders($1)"}
+{"asctime": "2026-03-23 14:44:33,371", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "[cached since 3300s ago] (5,)"}
+{"asctime": "2026-03-23 14:44:33,372", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "ROLLBACK"}
+{"asctime": "2026-03-23 14:49:33,362", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "BEGIN (implicit)"}
+{"asctime": "2026-03-23 14:49:33,363", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "SELECT * FROM fn_get_due_reminders($1)"}
+{"asctime": "2026-03-23 14:49:33,364", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "[cached since 3600s ago] (5,)"}
+{"asctime": "2026-03-23 14:49:33,368", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "ROLLBACK"}
+{"asctime": "2026-03-23 14:54:33,361", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "BEGIN (implicit)"}
+{"asctime": "2026-03-23 14:54:33,363", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "SELECT * FROM fn_get_due_reminders($1)"}
+{"asctime": "2026-03-23 14:54:33,363", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "[cached since 3900s ago] (5,)"}
+{"asctime": "2026-03-23 14:54:33,366", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "ROLLBACK"}
+{"asctime": "2026-03-23 14:59:33,369", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "BEGIN (implicit)"}
+{"asctime": "2026-03-23 14:59:33,370", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "SELECT * FROM fn_get_due_reminders($1)"}
+{"asctime": "2026-03-23 14:59:33,370", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "[cached since 4200s ago] (5,)"}
+{"asctime": "2026-03-23 14:59:33,372", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "ROLLBACK"}
+{"asctime": "2026-03-23 15:04:33,376", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "BEGIN (implicit)"}
+{"asctime": "2026-03-23 15:04:33,378", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "SELECT * FROM fn_get_due_reminders($1)"}
+{"asctime": "2026-03-23 15:04:33,378", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "[cached since 4500s ago] (5,)"}
+{"asctime": "2026-03-23 15:04:33,382", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "ROLLBACK"}
+{"asctime": "2026-03-23 15:09:33,380", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "BEGIN (implicit)"}
+{"asctime": "2026-03-23 15:09:33,381", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "SELECT * FROM fn_get_due_reminders($1)"}
+{"asctime": "2026-03-23 15:09:33,381", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "[cached since 4800s ago] (5,)"}
+{"asctime": "2026-03-23 15:09:33,384", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "ROLLBACK"}
+{"asctime": "2026-03-23 15:14:33,375", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "BEGIN (implicit)"}
+{"asctime": "2026-03-23 15:14:33,378", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "SELECT * FROM fn_get_due_reminders($1)"}
+{"asctime": "2026-03-23 15:14:33,379", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "[cached since 5100s ago] (5,)"}
+{"asctime": "2026-03-23 15:14:33,381", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "ROLLBACK"}
+{"asctime": "2026-03-23 15:19:33,372", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "BEGIN (implicit)"}
+{"asctime": "2026-03-23 15:19:33,374", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "SELECT * FROM fn_get_due_reminders($1)"}
+{"asctime": "2026-03-23 15:19:33,374", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "[cached since 5400s ago] (5,)"}
+{"asctime": "2026-03-23 15:19:33,377", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "ROLLBACK"}
+{"asctime": "2026-03-23 15:24:33,361", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "BEGIN (implicit)"}
+{"asctime": "2026-03-23 15:24:33,363", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "SELECT * FROM fn_get_due_reminders($1)"}
+{"asctime": "2026-03-23 15:24:33,363", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "[cached since 5700s ago] (5,)"}
+{"asctime": "2026-03-23 15:24:33,366", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "ROLLBACK"}
+{"asctime": "2026-03-23 15:29:33,367", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "BEGIN (implicit)"}
+{"asctime": "2026-03-23 15:29:33,369", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "SELECT * FROM fn_get_due_reminders($1)"}
+{"asctime": "2026-03-23 15:29:33,369", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "[cached since 6000s ago] (5,)"}
+{"asctime": "2026-03-23 15:29:33,371", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "ROLLBACK"}
+{"asctime": "2026-03-23 15:34:33,359", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "BEGIN (implicit)"}
+{"asctime": "2026-03-23 15:34:33,359", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "SELECT * FROM fn_get_due_reminders($1)"}
+{"asctime": "2026-03-23 15:34:33,361", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "[cached since 6300s ago] (5,)"}
+{"asctime": "2026-03-23 15:34:33,363", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "ROLLBACK"}
+{"asctime": "2026-03-23 15:39:33,364", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "BEGIN (implicit)"}
+{"asctime": "2026-03-23 15:39:33,365", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "SELECT * FROM fn_get_due_reminders($1)"}
+{"asctime": "2026-03-23 15:39:33,365", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "[cached since 6600s ago] (5,)"}
+{"asctime": "2026-03-23 15:39:33,368", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "ROLLBACK"}
+{"asctime": "2026-03-23 15:44:33,366", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "BEGIN (implicit)"}
+{"asctime": "2026-03-23 15:44:33,367", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "SELECT * FROM fn_get_due_reminders($1)"}
+{"asctime": "2026-03-23 15:44:33,367", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "[cached since 6900s ago] (5,)"}
+{"asctime": "2026-03-23 15:44:33,369", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "ROLLBACK"}
+{"asctime": "2026-03-23 15:59:33,361", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "BEGIN (implicit)"}
+{"asctime": "2026-03-23 15:59:33,364", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "SELECT * FROM fn_get_due_reminders($1)"}
+{"asctime": "2026-03-23 15:59:33,364", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "[cached since 7808s ago] (5,)"}
+{"asctime": "2026-03-23 15:59:33,367", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "ROLLBACK"}
+{"asctime": "2026-03-23 16:04:33,370", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "BEGIN (implicit)"}
+{"asctime": "2026-03-23 16:04:33,372", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "SELECT * FROM fn_get_due_reminders($1)"}
+{"asctime": "2026-03-23 16:04:33,372", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "[cached since 8108s ago] (5,)"}
+{"asctime": "2026-03-23 16:04:33,374", "level": "INFO", "logger": "sqlalchemy.engine.Engine", "message": "ROLLBACK"}

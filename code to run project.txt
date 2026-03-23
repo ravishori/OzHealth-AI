@@ -12,3 +12,9 @@ cd D:\ravishori\OzHealth-AI\flutter_app
 flutter clean
 flutter pub get
 flutter run
+
+
+
+git add .
+git commit -m "Update: <your message>"
+git push
