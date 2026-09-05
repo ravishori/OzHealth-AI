@@ -1,5 +1,5 @@
-"""
-Redis cache service for VitaPulse AI.
+﻿"""
+Redis cache service for HealthNest.
 
 Provides async get/set/delete/invalidate_prefix helpers.
 Falls back to no-op (always miss) when Redis is unavailable so the app
@@ -18,16 +18,16 @@ from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
-# ─── TTL constants ────────────────────────────────────────────────────────────
+# â”€â”€â”€ TTL constants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 MEDICINE_SEARCH_TTL = 3600
 MEDICINE_DETAIL_TTL = 21600
 USER_PROFILE_TTL = 300
 HEALTH_SUMMARY_TTL = 1800
 NEARBY_TTL = 900
 
-# ─── Redis client (lazy init with backoff) ────────────────────────────────────
+# â”€â”€â”€ Redis client (lazy init with backoff) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 _redis = None
-_redis_next_retry: float = 0.0   # epoch seconds — don't retry before this time
+_redis_next_retry: float = 0.0   # epoch seconds â€” don't retry before this time
 
 
 async def _get_redis():
@@ -62,7 +62,7 @@ async def _get_redis():
         await _redis.ping()
         logger.info("Redis connected: %s", settings.REDIS_URL)
     except Exception as exc:
-        logger.warning("Redis unavailable — caching disabled (retry in 30 s): %s", exc)
+        logger.warning("Redis unavailable â€” caching disabled (retry in 30 s): %s", exc)
         _redis = None
         _redis_next_retry = time.monotonic() + 30   # back off 30 seconds
     return _redis
@@ -126,7 +126,7 @@ class CacheService:
             logger.debug("Cache INVALIDATE error for prefix %s: %s", prefix, exc)
             return 0
 
-    # ── Rate limiting helpers ─────────────────────────────────────────────────
+    # â”€â”€ Rate limiting helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @staticmethod
     async def increment_counter(key: str, ttl: int = 900) -> int:
@@ -137,7 +137,7 @@ class CacheService:
         try:
             r = await _get_redis()
             if r is None:
-                return 0  # no Redis → no rate limiting (fail open)
+                return 0  # no Redis â†’ no rate limiting (fail open)
             count = await r.incr(key)
             if count == 1:
                 await r.expire(key, ttl)

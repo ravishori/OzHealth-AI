@@ -7,7 +7,7 @@ class MedicalRecordResponse(BaseModel):
     id: int
     user_id: int
     family_member_id: Optional[int] = None
-    record_type: str   # prescription, lab_report, imaging, vaccination, discharge, other
+    record_type: str   # prescription, lab_report, radiology, discharge_summary, other
     title: Optional[str] = None
     file_url: Optional[str] = None
     file_name: Optional[str] = None

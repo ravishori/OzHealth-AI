@@ -1,8 +1,12 @@
-import 'package:vitapulse_ai/core/utils/error_handler.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:vitapulse_ai/core/network/api_client.dart';
-import 'package:vitapulse_ai/core/theme/app_theme.dart';
+import 'package:vitapulse_ai/core/notifications/local_reminder_notifications.dart';
+import 'package:vitapulse_ai/features/reminders/presentation/add_reminder_screen.dart';
+import 'package:vitapulse_ai/shared/widgets/shimmer_box.dart';
+import 'package:vitapulse_ai/theme/design_tokens/app_radius.dart';
+import 'package:vitapulse_ai/theme/design_tokens/app_spacing.dart';
+import 'package:vitapulse_ai/theme/theme_extensions.dart';
 
 class RemindersScreen extends StatefulWidget {
   const RemindersScreen({super.key});
@@ -51,6 +55,25 @@ class _RemindersScreenState extends State<RemindersScreen> {
     });
     try {
       await ApiClient.put('/reminders/$id', data: {'is_active': !currentActive});
+      final scheduleId = id is int ? id : int.tryParse('$id');
+      if (scheduleId != null) {
+        if (currentActive) {
+          // Turning OFF → cancel local notifications
+          await LocalReminderNotifications.cancelForSchedule(scheduleId);
+        } else {
+          final times = (reminder['times'] is List)
+              ? List<String>.from(reminder['times'].map((e) => e.toString()))
+              : <String>[];
+          await LocalReminderNotifications.scheduleMedicationReminders(
+            scheduleId: scheduleId,
+            medicineName: reminder['medicine_name']?.toString() ?? 'Medication',
+            times: times,
+            dosage: reminder['dosage']?.toString(),
+            frequencyApi: reminder['frequency']?.toString() ?? 'daily',
+            refillDate: parseReminderApiDate(reminder['refill_date']),
+          );
+        }
+      }
     } catch (e) {
       setState(() {
         reminder['is_active'] = currentActive;
@@ -63,25 +86,21 @@ class _RemindersScreenState extends State<RemindersScreen> {
     }
   }
 
-  Future<void> _deleteReminder(Map<String, dynamic> reminder, int index) async {
+  Future<void> _deleteReminder(
+      Map<String, dynamic> reminder, int index) async {
     final id = reminder['id'];
     setState(() => _reminders.removeAt(index));
     try {
       await ApiClient.delete('/reminders/$id');
+      final scheduleId = id is int ? id : int.tryParse('$id');
+      if (scheduleId != null) {
+        await LocalReminderNotifications.cancelForSchedule(scheduleId);
+      }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('${reminder['medicine_name'] ?? 'Reminder'} deleted'),
-            action: SnackBarAction(
-              label: 'Undo',
-              onPressed: () async {
-                setState(() => _reminders.insert(index, reminder));
-                // Re-create on server
-                try {
-                  await ApiClient.post('/reminders/', data: reminder);
-                } catch (_) {}
-              },
-            ),
+            content:
+                Text('${reminder['medicine_name'] ?? 'Reminder'} deleted'),
           ),
         );
       }
@@ -95,83 +114,117 @@ class _RemindersScreenState extends State<RemindersScreen> {
     }
   }
 
-  String _formatNextReminder(Map<String, dynamic> reminder) {
-    final nextTime = reminder['next_reminder_time']?.toString() ?? '';
-    if (nextTime.isEmpty) return 'No upcoming';
-    try {
-      final dt = DateTime.parse(nextTime).toLocal();
-      final now = DateTime.now();
-      final diff = dt.difference(now);
-      if (diff.inMinutes < 60 && diff.inMinutes >= 0) {
-        return 'In ${diff.inMinutes} min';
-      } else if (diff.inHours < 24 && diff.inHours >= 0) {
-        return 'Today ${_formatTime(dt)}';
-      } else if (diff.inDays == 1) {
-        return 'Tomorrow ${_formatTime(dt)}';
-      } else if (diff.inDays < 0) {
-        return 'Overdue';
-      }
-      return '${dt.day}/${dt.month} ${_formatTime(dt)}';
-    } catch (_) {
-      return nextTime;
-    }
-  }
-
-  String _formatTime(DateTime dt) {
-    final h = dt.hour > 12 ? dt.hour - 12 : (dt.hour == 0 ? 12 : dt.hour);
-    final m = dt.minute.toString().padLeft(2, '0');
-    final ampm = dt.hour >= 12 ? 'PM' : 'AM';
-    return '$h:$m $ampm';
-  }
-
-  Color _frequencyColor(String freq) {
-    switch (freq.toLowerCase()) {
+  static String frequencyLabel(String raw) {
+    switch (raw.toLowerCase().replaceAll(' ', '_')) {
       case 'daily':
-        return AppTheme.primary;
-      case 'twice daily':
-        return AppTheme.secondary;
-      case 'three times daily':
-        return const Color(0xFF6A1B9A);
+        return 'Daily';
+      case 'twice_daily':
+        return 'Twice Daily';
+      case 'three_times_daily':
+        return 'Three Times Daily';
+      case 'four_times_daily':
+        return 'Four Times Daily';
       case 'weekly':
-        return const Color(0xFF00838F);
+        return 'Weekly';
+      case 'fortnightly':
+        return 'Fortnightly';
       case 'monthly':
-        return const Color(0xFF558B2F);
-      case 'as needed':
-        return AppTheme.accent;
+        return 'Monthly';
+      case 'as_needed':
+        return 'As Needed';
       default:
-        return AppTheme.textSecondary;
+        return raw;
     }
+  }
+
+  String _formatNextReminder(Map<String, dynamic> reminder) {
+    final times = reminder['times'];
+    if (times is List && times.isNotEmpty) {
+      final freq = frequencyLabel(reminder['frequency']?.toString() ?? '');
+      return '$freq · ${times.first}';
+    }
+    final nextTime = reminder['next_reminder_time']?.toString() ?? '';
+    if (nextTime.isEmpty) return 'Scheduled';
+    return nextTime;
+  }
+
+  Color _frequencyColor(BuildContext context, String freq) {
+    final cs = Theme.of(context).colorScheme;
+    final hc = HealthcareColors.of(context);
+    final key = freq.toLowerCase().replaceAll(' ', '_');
+    return switch (key) {
+      'daily' => cs.primary,
+      'twice_daily' => cs.secondary,
+      'three_times_daily' => cs.tertiary,
+      'weekly' || 'as_needed' || 'fortnightly' => hc.vitaWarning,
+      'monthly' => hc.aiAccent,
+      _ => cs.onSurfaceVariant,
+    };
   }
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final hc = HealthcareColors.of(context);
+
     return Scaffold(
-      backgroundColor: AppTheme.background,
+      backgroundColor: cs.surface,
       appBar: AppBar(
-        title: const Text('Medication Reminders'),
+        backgroundColor: cs.surface,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Medication Reminders',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+            ),
+            if (!_loading && !_error.isNotEmpty && _reminders.isNotEmpty)
+              Text(
+                '${_reminders.where((r) => r['is_active'] == true).length} active',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: hc.vitaGood,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+          ],
+        ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
+            icon: const Icon(Icons.refresh_rounded),
+            tooltip: 'Refresh',
             onPressed: _loadReminders,
           ),
         ],
       ),
-      body: _buildBody(),
+      body: _buildBody(context),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () async {
-          await context.push('/home/reminders/add');
-          _loadReminders();
+          final added = await context.push('/home/reminders/add');
+          if (added == true) _loadReminders();
         },
-        backgroundColor: AppTheme.primary,
-        icon: const Icon(Icons.add, color: Colors.white),
-        label: const Text('Add Reminder', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+        icon: const Icon(Icons.add_rounded),
+        label: const Text('Add Reminder',
+            style: TextStyle(fontWeight: FontWeight.w600)),
       ),
     );
   }
 
-  Widget _buildBody() {
+  Widget _buildBody(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
     if (_loading) {
-      return const Center(child: CircularProgressIndicator(color: AppTheme.primary));
+      return ListView(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
+        children: const [
+          ShimmerCard(height: 96),
+          ShimmerCard(height: 96),
+          ShimmerCard(height: 96),
+          ShimmerCard(height: 96),
+        ],
+      );
     }
 
     if (_error.isNotEmpty) {
@@ -181,11 +234,36 @@ class _RemindersScreenState extends State<RemindersScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.error_outline, color: AppTheme.error, size: 56),
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: cs.errorContainer.withValues(alpha: 0.5),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.error_outline_rounded,
+                    color: cs.error, size: 48),
+              ),
               const SizedBox(height: 16),
-              Text(_error, style: const TextStyle(color: AppTheme.textSecondary), textAlign: TextAlign.center),
+              Text(
+                'Could not load reminders',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: cs.onSurface,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                _error,
+                style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13),
+                textAlign: TextAlign.center,
+              ),
               const SizedBox(height: 24),
-              ElevatedButton(onPressed: _loadReminders, child: const Text('Retry')),
+              FilledButton.icon(
+                onPressed: _loadReminders,
+                icon: const Icon(Icons.refresh_rounded, size: 18),
+                label: const Text('Try again'),
+              ),
             ],
           ),
         ),
@@ -193,93 +271,162 @@ class _RemindersScreenState extends State<RemindersScreen> {
     }
 
     if (_reminders.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: const Color(0x1400897B),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.alarm_off, color: AppTheme.primary, size: 56),
-            ),
-            const SizedBox(height: 24),
-            const Text(
-              'No reminders set',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: AppTheme.textPrimary),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Tap + to add your first medication reminder',
-              style: TextStyle(color: AppTheme.textSecondary, fontSize: 14),
-            ),
-          ],
-        ),
-      );
+      return _buildEmptyState(context);
     }
 
     return RefreshIndicator(
-      color: AppTheme.primary,
       onRefresh: _loadReminders,
       child: ListView.builder(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
         itemCount: _reminders.length,
         itemBuilder: (context, index) {
           final reminder = _reminders[index];
-          return _buildDismissible(reminder, index);
+          return _buildDismissible(context, reminder, index);
         },
       ),
     );
   }
 
-  Widget _buildDismissible(Map<String, dynamic> reminder, int index) {
+  Widget _buildEmptyState(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final hc = HealthcareColors.of(context);
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 100,
+              height: 100,
+              decoration: BoxDecoration(
+                gradient: RadialGradient(
+                  colors: [
+                    hc.vitaWarning.withValues(alpha: 0.15),
+                    hc.vitaWarning.withValues(alpha: 0.04),
+                  ],
+                ),
+                shape: BoxShape.circle,
+              ),
+              child: Container(
+                margin: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: hc.vitaWarning.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.alarm_outlined,
+                    color: hc.vitaWarning, size: 36),
+              ),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              'No reminders yet',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+                color: cs.onSurface,
+                letterSpacing: -0.3,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Stay on track with your medications by setting up reminders.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: cs.onSurfaceVariant,
+                fontSize: 14,
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 28),
+            FilledButton.icon(
+              onPressed: () async {
+                final added = await context.push('/home/reminders/add');
+                if (added == true) _loadReminders();
+              },
+              icon: const Icon(Icons.add_rounded, size: 18),
+              label: const Text('Add your first reminder'),
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 24, vertical: 14),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDismissible(
+      BuildContext context, Map<String, dynamic> reminder, int index) {
+    final cs = Theme.of(context).colorScheme;
+
     return Dismissible(
       key: ValueKey(reminder['id'] ?? index),
       direction: DismissDirection.endToStart,
       background: Container(
         alignment: Alignment.centerRight,
-        padding: const EdgeInsets.only(right: 20),
+        padding: const EdgeInsets.only(right: 24),
         margin: const EdgeInsets.only(bottom: 12),
         decoration: BoxDecoration(
-          color: AppTheme.error,
-          borderRadius: BorderRadius.circular(12),
+          gradient: LinearGradient(
+            colors: [
+              cs.error.withValues(alpha: 0.0),
+              cs.error,
+            ],
+          ),
+          borderRadius: AppRadius.brMd,
         ),
         child: const Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.delete_outline, color: Colors.white, size: 26),
+            Icon(Icons.delete_outline_rounded, color: Colors.white, size: 26),
             SizedBox(height: 4),
-            Text('Delete', style: TextStyle(color: Colors.white, fontSize: 12)),
+            Text('Delete',
+                style: TextStyle(color: Colors.white, fontSize: 12)),
           ],
         ),
       ),
-      confirmDismiss: (_) async {
-        return await _showDeleteConfirm(reminder);
-      },
+      confirmDismiss: (_) async => _showDeleteConfirm(context, reminder),
       onDismissed: (_) => _deleteReminder(reminder, index),
       child: _ReminderCard(
         reminder: reminder,
         nextReminderText: _formatNextReminder(reminder),
-        frequencyColor: _frequencyColor(reminder['frequency']?.toString() ?? ''),
+        frequencyColor: _frequencyColor(
+            context, reminder['frequency']?.toString() ?? ''),
         onToggle: () => _toggleReminder(reminder),
+        onOpen: () async {
+          final changed = await context.push(
+            '/home/reminders/edit',
+            extra: reminder,
+          );
+          if (changed == true && mounted) _loadReminders();
+        },
       ),
     );
   }
 
-  Future<bool> _showDeleteConfirm(Map<String, dynamic> reminder) async {
+  Future<bool> _showDeleteConfirm(
+      BuildContext context, Map<String, dynamic> reminder) async {
+    final cs = Theme.of(context).colorScheme;
     return await showDialog<bool>(
           context: context,
           builder: (ctx) => AlertDialog(
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20)),
             title: const Text('Delete Reminder'),
             content: Text(
               'Delete reminder for ${reminder['medicine_name'] ?? 'this medicine'}?',
             ),
             actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(backgroundColor: AppTheme.error),
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('Cancel')),
+              FilledButton(
+                style: FilledButton.styleFrom(backgroundColor: cs.error),
                 onPressed: () => Navigator.pop(ctx, true),
                 child: const Text('Delete'),
               ),
@@ -290,122 +437,220 @@ class _RemindersScreenState extends State<RemindersScreen> {
   }
 }
 
+// ─────────────────────────── Reminder card ───────────────────────────
+
 class _ReminderCard extends StatelessWidget {
   final Map<String, dynamic> reminder;
   final String nextReminderText;
   final Color frequencyColor;
   final VoidCallback onToggle;
+  final VoidCallback onOpen;
 
   const _ReminderCard({
     required this.reminder,
     required this.nextReminderText,
     required this.frequencyColor,
     required this.onToggle,
+    required this.onOpen,
   });
 
   @override
   Widget build(BuildContext context) {
-    final medicineName = reminder['medicine_name']?.toString() ?? 'Unknown Medicine';
+    final cs = Theme.of(context).colorScheme;
+
+    final medicineName =
+        reminder['medicine_name']?.toString() ?? 'Unknown Medicine';
     final dosage = reminder['dosage']?.toString() ?? '';
-    final frequency = reminder['frequency']?.toString() ?? '';
+    final frequency = _RemindersScreenState.frequencyLabel(
+        reminder['frequency']?.toString() ?? '');
     final isActive = reminder['is_active'] == true;
     final memberName = reminder['family_member_name']?.toString() ?? '';
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: isActive
-                    ? const Color(0x1A00897B)
-                    : const Color(0x1A9E9E9E),
-                borderRadius: BorderRadius.circular(10),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onOpen,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+      margin: const EdgeInsets.only(bottom: AppSpacing.x3),
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isActive
+              ? frequencyColor.withValues(alpha: 0.2)
+              : cs.outlineVariant.withValues(alpha: 0.5),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: cs.shadow.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Left accent bar
+              Container(
+                width: 4,
+                decoration: BoxDecoration(
+                  color: isActive
+                      ? frequencyColor
+                      : cs.outlineVariant.withValues(alpha: 0.5),
+                ),
               ),
-              child: Icon(
-                Icons.alarm,
-                color: isActive ? AppTheme.primary : Colors.grey,
-                size: 24,
-              ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    medicineName,
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 15,
-                      color: isActive ? AppTheme.textPrimary : AppTheme.textSecondary,
-                    ),
-                  ),
-                  if (dosage.isNotEmpty) ...[
-                    const SizedBox(height: 3),
-                    Text(
-                      dosage,
-                      style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13),
-                    ),
-                  ],
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 4,
+              // Card content
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 14, 8, 14),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      if (frequency.isNotEmpty)
-                        _Chip(label: frequency, color: frequencyColor),
-                      _Chip(
-                        label: nextReminderText,
-                        color: nextReminderText == 'Overdue' ? AppTheme.error : AppTheme.secondary,
-                        icon: Icons.schedule,
+                      // Icon
+                      Container(
+                        padding: const EdgeInsets.all(9),
+                        decoration: BoxDecoration(
+                          color: isActive
+                              ? frequencyColor.withValues(alpha: 0.12)
+                              : cs.surfaceContainerHighest,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(
+                          Icons.medication_rounded,
+                          color: isActive
+                              ? frequencyColor
+                              : cs.onSurfaceVariant,
+                          size: 22,
+                        ),
                       ),
-                      if (memberName.isNotEmpty)
-                        _Chip(label: memberName, color: Colors.grey.shade600, icon: Icons.person),
+                      const SizedBox(width: 12),
+                      // Text block
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              medicineName,
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 15,
+                                color: isActive
+                                    ? cs.onSurface
+                                    : cs.onSurfaceVariant,
+                                height: 1.2,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            if (dosage.isNotEmpty) ...[
+                              const SizedBox(height: 3),
+                              Text(
+                                dosage,
+                                style: TextStyle(
+                                  color: cs.onSurfaceVariant,
+                                  fontSize: 12,
+                                  height: 1.2,
+                                ),
+                              ),
+                            ],
+                            const SizedBox(height: 8),
+                            Wrap(
+                              spacing: 6,
+                              runSpacing: 4,
+                              children: [
+                                if (frequency.isNotEmpty)
+                                  _Badge(
+                                    label: frequency,
+                                    color: frequencyColor,
+                                    icon: Icons.repeat_rounded,
+                                  ),
+                                _Badge(
+                                  label: nextReminderText,
+                                  color: nextReminderText == 'Overdue'
+                                      ? cs.error
+                                      : cs.secondary,
+                                  icon: Icons.schedule_rounded,
+                                ),
+                                if (memberName.isNotEmpty)
+                                  _Badge(
+                                    label: 'For $memberName',
+                                    color: cs.tertiary,
+                                    icon: Icons.family_restroom,
+                                  )
+                                else
+                                  _Badge(
+                                    label: 'Personal',
+                                    color: cs.onSurfaceVariant,
+                                    icon: Icons.person_outline,
+                                  ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      // Toggle
+                      Transform.scale(
+                        scale: 0.85,
+                        child: Switch(
+                          value: isActive,
+                          onChanged: (_) => onToggle(),
+                          activeThumbColor: frequencyColor,
+                          materialTapTargetSize:
+                              MaterialTapTargetSize.shrinkWrap,
+                        ),
+                      ),
                     ],
                   ),
-                ],
+                ),
               ),
-            ),
-            Switch(
-              value: isActive,
-              onChanged: (_) => onToggle(),
-              activeColor: AppTheme.primary,
-            ),
-          ],
+            ],
+          ),
+        ),
+      ),
         ),
       ),
     );
   }
 }
 
-class _Chip extends StatelessWidget {
+// ─────────────────────────── Badge ───────────────────────────
+
+class _Badge extends StatelessWidget {
   final String label;
   final Color color;
   final IconData? icon;
 
-  const _Chip({required this.label, required this.color, this.icon});
+  const _Badge({required this.label, required this.color, this.icon});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
       decoration: BoxDecoration(
-        color: Color.fromRGBO(color.red, color.green, color.blue, 0.1),
+        color: color.withValues(alpha: 0.10),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           if (icon != null) ...[
-            Icon(icon, color: color, size: 11),
+            Icon(icon, size: 10, color: color),
             const SizedBox(width: 3),
           ],
-          Text(label, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w500)),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              color: color,
+              fontWeight: FontWeight.w600,
+              height: 1.1,
+            ),
+          ),
         ],
       ),
     );

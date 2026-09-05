@@ -8,20 +8,19 @@ class MedicineApi {
     return resp.data as Map<String, dynamic>;
   }
 
-  static Future<Map<String, dynamic>?> getByBarcode(String barcode) async {
-    try {
-      final resp = await ApiClient.get('/medicines/barcode/$barcode');
-      return resp.data as Map<String, dynamic>;
-    } catch (_) {
-      return null;
-    }
-  }
-
   static Future<Map<String, dynamic>> getMedicine(int id) async {
     final resp = await ApiClient.get('/medicines/$id');
     return resp.data as Map<String, dynamic>;
   }
 
+  /// Catalogue-grounded patient explanation (HN-MED-008 preferred AI path).
+  static Future<Map<String, dynamic>> getExplanation(int id) async {
+    final resp = await ApiClient.get('/medicines/$id/explanation');
+    return resp.data as Map<String, dynamic>;
+  }
+
+  /// Legacy name bridge — catalogue-gated only; does not invent clinical records.
+  /// Prefer [getExplanation] with a confirmed medicine id for detail screens.
   static Future<Map<String, dynamic>> getAiInfo(String medicineName) async {
     final encodedName = Uri.encodeComponent(medicineName);
     final resp = await ApiClient.get('/medicines/ai-info/$encodedName');

@@ -1,6 +1,6 @@
-# vitapulse_ai
+# HealthNest (Flutter)
 
-A new Flutter project.
+Flutter client for **HealthNest** (package name `vitapulse_ai` retained for compatibility).
 
 ## Getting Started
 

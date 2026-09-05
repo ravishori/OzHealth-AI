@@ -1,8 +1,8 @@
-import 'package:vitapulse_ai/core/utils/error_handler.dart';
 import 'package:flutter/material.dart';
 import 'package:vitapulse_ai/core/network/api_client.dart';
-import 'package:vitapulse_ai/core/theme/app_theme.dart';
 import 'package:vitapulse_ai/shared/widgets/loading_button.dart';
+import 'package:vitapulse_ai/theme/design_tokens/app_radius.dart';
+import 'package:vitapulse_ai/theme/theme_extensions.dart';
 
 class LogMetricScreen extends StatefulWidget {
   const LogMetricScreen({super.key});
@@ -107,12 +107,6 @@ class _LogMetricScreenState extends State<LogMetricScreen> {
       initialDate: _loggedAt,
       firstDate: DateTime.now().subtract(const Duration(days: 365)),
       lastDate: DateTime.now(),
-      builder: (ctx, child) => Theme(
-        data: Theme.of(ctx).copyWith(
-          colorScheme: const ColorScheme.light(primary: AppTheme.primary),
-        ),
-        child: child!,
-      ),
     );
     if (pickedDate == null) return;
 
@@ -120,12 +114,6 @@ class _LogMetricScreenState extends State<LogMetricScreen> {
     final pickedTime = await showTimePicker(
       context: context,
       initialTime: TimeOfDay.fromDateTime(_loggedAt),
-      builder: (ctx, child) => Theme(
-        data: Theme.of(ctx).copyWith(
-          colorScheme: const ColorScheme.light(primary: AppTheme.primary),
-        ),
-        child: child!,
-      ),
     );
     if (pickedTime == null) return;
 
@@ -142,7 +130,8 @@ class _LogMetricScreenState extends State<LogMetricScreen> {
 
   String _formatDateTime(DateTime dt) {
     final now = DateTime.now();
-    final isToday = dt.year == now.year && dt.month == now.month && dt.day == now.day;
+    final isToday =
+        dt.year == now.year && dt.month == now.month && dt.day == now.day;
     final dateStr = isToday ? 'Today' : '${dt.day}/${dt.month}/${dt.year}';
     final h = dt.hour > 12 ? dt.hour - 12 : (dt.hour == 0 ? 12 : dt.hour);
     final m = dt.minute.toString().padLeft(2, '0');
@@ -155,19 +144,20 @@ class _LogMetricScreenState extends State<LogMetricScreen> {
 
     setState(() => _loading = true);
 
-    final metricKey = _metricKeyMap[_metricType] ?? _metricType.toLowerCase().replaceAll(' ', '_');
+    final metricKey = _metricKeyMap[_metricType] ??
+        _metricType.toLowerCase().replaceAll(' ', '_');
 
     Map<String, dynamic> data = {
       'metric_type': metricKey,
-      'logged_at': _loggedAt.toIso8601String(),
+      'recorded_at': _loggedAt.toIso8601String(),
       'notes': _notesController.text.trim(),
-      if (_selectedFamilyMemberId != null) 'family_member_id': _selectedFamilyMemberId,
+      if (_selectedFamilyMemberId != null)
+        'family_member_id': _selectedFamilyMemberId,
     };
 
     if (_isBP) {
-      data['systolic'] = double.parse(_systolicController.text.trim());
-      data['diastolic'] = double.parse(_diastolicController.text.trim());
-      data['value'] = double.parse(_systolicController.text.trim()); // convenience field
+      data['value'] = double.parse(_systolicController.text.trim());
+      data['value2'] = double.parse(_diastolicController.text.trim());
     } else {
       data['value'] = double.parse(_valueController.text.trim());
     }
@@ -175,6 +165,7 @@ class _LogMetricScreenState extends State<LogMetricScreen> {
     try {
       await ApiClient.post('/health-metrics/', data: data);
       if (mounted) {
+        final hc = HealthcareColors.of(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Row(
@@ -184,7 +175,7 @@ class _LogMetricScreenState extends State<LogMetricScreen> {
                 Text('$_metricType logged successfully'),
               ],
             ),
-            backgroundColor: AppTheme.success,
+            backgroundColor: hc.vitaGood,
           ),
         );
         Navigator.of(context).pop();
@@ -193,9 +184,9 @@ class _LogMetricScreenState extends State<LogMetricScreen> {
       setState(() => _loading = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to log metric. Please try again.'),
-            backgroundColor: AppTheme.error,
+          SnackBar(
+            content: const Text('Failed to log metric. Please try again.'),
+            backgroundColor: Theme.of(context).colorScheme.error,
           ),
         );
       }
@@ -204,8 +195,9 @@ class _LogMetricScreenState extends State<LogMetricScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: AppTheme.background,
+      backgroundColor: cs.surface,
       appBar: AppBar(title: const Text('Log Health Metric')),
       body: Form(
         key: _formKey,
@@ -244,16 +236,20 @@ class _LogMetricScreenState extends State<LogMetricScreen> {
   }
 
   Widget _buildMetricTypeSelector() {
+    final cs = Theme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Row(
+        Row(
           children: [
-            Icon(Icons.monitor_heart, color: AppTheme.primary, size: 18),
-            SizedBox(width: 8),
+            Icon(Icons.monitor_heart, color: cs.primary, size: 18),
+            const SizedBox(width: 8),
             Text(
               'Metric Type',
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppTheme.textPrimary),
+              style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: cs.onSurface),
             ),
           ],
         ),
@@ -272,17 +268,18 @@ class _LogMetricScreenState extends State<LogMetricScreen> {
                 _systolicController.clear();
                 _diastolicController.clear();
               }),
-              selectedColor: AppTheme.primary,
+              selectedColor: cs.primary,
               backgroundColor: Colors.white,
               labelStyle: TextStyle(
-                color: selected ? Colors.white : AppTheme.textPrimary,
+                color: selected ? Colors.white : cs.onSurface,
                 fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
                 fontSize: 13,
               ),
               side: BorderSide(
-                color: selected ? AppTheme.primary : Colors.grey.shade300,
+                color: selected ? cs.primary : cs.outline,
               ),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              shape: const RoundedRectangleBorder(
+                  borderRadius: AppRadius.brXxl),
             );
           }).toList(),
         ),
@@ -291,41 +288,46 @@ class _LogMetricScreenState extends State<LogMetricScreen> {
   }
 
   Widget _buildValueSection() {
+    final cs = Theme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
-            const Icon(Icons.input, color: AppTheme.primary, size: 18),
+            Icon(Icons.input, color: cs.primary, size: 18),
             const SizedBox(width: 8),
             Text(
               '$_metricType Value',
-              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppTheme.textPrimary),
+              style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: cs.onSurface),
             ),
             const SizedBox(width: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(
-                color: const Color(0x1A00897B),
-                borderRadius: BorderRadius.circular(12),
+                color: cs.primary.withValues(alpha: 0.08),
+                borderRadius: AppRadius.brMd,
               ),
               child: Text(
                 _unit,
-                style: const TextStyle(color: AppTheme.primary, fontSize: 12, fontWeight: FontWeight.w600),
+                style: TextStyle(
+                    color: cs.primary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600),
               ),
             ),
           ],
         ),
         const SizedBox(height: 12),
-        if (_isBP)
-          _buildBPFields()
-        else
-          _buildSingleValueField(),
+        if (_isBP) _buildBPFields() else _buildSingleValueField(),
       ],
     );
   }
 
   Widget _buildBPFields() {
+    final cs = Theme.of(context).colorScheme;
     return Row(
       children: [
         Expanded(
@@ -347,9 +349,12 @@ class _LogMetricScreenState extends State<LogMetricScreen> {
           ),
         ),
         const SizedBox(width: 8),
-        const Text(
+        Text(
           '/',
-          style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: AppTheme.textSecondary),
+          style: TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              color: cs.onSurfaceVariant),
         ),
         const SizedBox(width: 8),
         Expanded(
@@ -375,6 +380,7 @@ class _LogMetricScreenState extends State<LogMetricScreen> {
   }
 
   Widget _buildSingleValueField() {
+    final cs = Theme.of(context).colorScheme;
     final hint = _hintMap[_metricType] ?? '0';
     final ranges = _getValidationRange(_metricType);
 
@@ -385,7 +391,7 @@ class _LogMetricScreenState extends State<LogMetricScreen> {
         labelText: '$_metricType *',
         hintText: hint,
         suffixText: _unit,
-        prefixIcon: Icon(_getMetricIcon(_metricType), color: AppTheme.primary),
+        prefixIcon: Icon(_getMetricIcon(_metricType), color: cs.primary),
       ),
       validator: (v) {
         if (v == null || v.trim().isEmpty) return 'Please enter a value';
@@ -434,45 +440,50 @@ class _LogMetricScreenState extends State<LogMetricScreen> {
   }
 
   Widget _buildDateTimeSection() {
+    final cs = Theme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Row(
+        Row(
           children: [
-            Icon(Icons.calendar_today, color: AppTheme.primary, size: 18),
-            SizedBox(width: 8),
+            Icon(Icons.calendar_today, color: cs.primary, size: 18),
+            const SizedBox(width: 8),
             Text(
               'Date & Time',
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppTheme.textPrimary),
+              style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: cs.onSurface),
             ),
           ],
         ),
         const SizedBox(height: 12),
         InkWell(
           onTap: _pickDateTime,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: AppRadius.brMd,
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             decoration: BoxDecoration(
-              color: Colors.grey.shade50,
-              border: Border.all(color: Colors.grey.shade300),
-              borderRadius: BorderRadius.circular(12),
+              color: cs.surface,
+              border: Border.all(color: cs.outline),
+              borderRadius: AppRadius.brMd,
             ),
             child: Row(
               children: [
-                const Icon(Icons.access_time, color: AppTheme.primary, size: 20),
+                Icon(Icons.access_time, color: cs.primary, size: 20),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     _formatDateTime(_loggedAt),
-                    style: const TextStyle(
-                      color: AppTheme.textPrimary,
+                    style: TextStyle(
+                      color: cs.onSurface,
                       fontSize: 15,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
                 ),
-                const Icon(Icons.edit, color: AppTheme.textSecondary, size: 16),
+                Icon(Icons.edit, color: cs.onSurfaceVariant, size: 16),
               ],
             ),
           ),
@@ -482,43 +493,56 @@ class _LogMetricScreenState extends State<LogMetricScreen> {
   }
 
   Widget _buildFamilySection() {
+    final cs = Theme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Row(
+        Row(
           children: [
-            Icon(Icons.family_restroom, color: AppTheme.primary, size: 18),
-            SizedBox(width: 8),
+            Icon(Icons.family_restroom, color: cs.primary, size: 18),
+            const SizedBox(width: 8),
             Text(
               'Logged For',
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppTheme.textPrimary),
+              style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: cs.onSurface),
             ),
           ],
         ),
         const SizedBox(height: 12),
         _loadingFamily
-            ? const Center(
+            ? Center(
                 child: Padding(
-                  padding: EdgeInsets.all(8),
-                  child: CircularProgressIndicator(color: AppTheme.primary, strokeWidth: 2),
+                  padding: const EdgeInsets.all(8),
+                  child: CircularProgressIndicator(
+                      color: cs.primary, strokeWidth: 2),
                 ),
               )
-            : DropdownButtonFormField<int?>(
-                value: _selectedFamilyMemberId,
-                decoration: const InputDecoration(
-                  labelText: 'Family Member (optional)',
-                  prefixIcon: Icon(Icons.person),
+            : Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                decoration: BoxDecoration(
+                  border: Border.all(color: cs.outline),
+                  borderRadius: AppRadius.brMd,
                 ),
-                items: [
-                  const DropdownMenuItem<int?>(value: null, child: Text('Myself')),
-                  ..._familyMembers.map(
-                    (m) => DropdownMenuItem<int?>(
-                      value: m['id'] as int?,
-                      child: Text(m['name']?.toString() ?? 'Unknown'),
+                child: DropdownButton<int?>(
+                  value: _selectedFamilyMemberId,
+                  isExpanded: true,
+                  underline: const SizedBox(),
+                  items: [
+                    const DropdownMenuItem<int?>(
+                        value: null, child: Text('Myself')),
+                    ..._familyMembers.map(
+                      (m) => DropdownMenuItem<int?>(
+                        value: m['id'] as int?,
+                        child: Text(m['name']?.toString() ?? 'Unknown'),
+                      ),
                     ),
-                  ),
-                ],
-                onChanged: (v) => setState(() => _selectedFamilyMemberId = v),
+                  ],
+                  onChanged: (v) =>
+                      setState(() => _selectedFamilyMemberId = v),
+                ),
               ),
       ],
     );

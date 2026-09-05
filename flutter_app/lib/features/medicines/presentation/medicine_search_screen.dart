@@ -1,10 +1,11 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:vitapulse_ai/core/network/api_client.dart';
-import 'package:vitapulse_ai/core/theme/app_theme.dart';
+import 'package:vitapulse_ai/shared/widgets/clinical_safety_banner.dart';
+import 'package:vitapulse_ai/theme/design_tokens/app_radius.dart';
+import 'package:vitapulse_ai/theme/theme_extensions.dart';
 
 class MedicineSearchScreen extends StatefulWidget {
   const MedicineSearchScreen({super.key});
@@ -57,7 +58,8 @@ class _MedicineSearchScreenState extends State<MedicineSearchScreen> {
       );
       final data = resp.data;
       setState(() {
-        _results = List<Map<String, dynamic>>.from(data is List ? data : (data['results'] ?? []));
+        _results = List<Map<String, dynamic>>.from(
+            data is List ? data : (data['results'] ?? []));
         _loading = false;
       });
     } catch (e) {
@@ -68,60 +70,26 @@ class _MedicineSearchScreenState extends State<MedicineSearchScreen> {
     }
   }
 
-  Future<void> _openBarcodeScanner() async {
-    final barcode = await Navigator.of(context).push<String>(
-      MaterialPageRoute(builder: (_) => const _BarcodeScannerPage()),
-    );
-    if (barcode != null && barcode.isNotEmpty) {
-      _searchController.text = barcode;
-      _fetchByBarcode(barcode);
-    }
-  }
-
-  Future<void> _fetchByBarcode(String barcode) async {
-    setState(() {
-      _loading = true;
-      _error = '';
-      _hasSearched = true;
-    });
-    try {
-      final resp = await ApiClient.get('/medicines/barcode/$barcode');
-      final medicine = Map<String, dynamic>.from(resp.data as Map);
-      setState(() {
-        _results = [medicine];
-        _loading = false;
-      });
-    } catch (e) {
-      setState(() {
-        _error = 'No medicine found for this barcode.';
-        _results = [];
-        _loading = false;
-      });
-    }
-  }
-
   void _onMedicineTap(Map<String, dynamic> medicine) {
-    final id = medicine['id']?.toString() ?? medicine['name']?.toString() ?? '';
-    context.go('/home/medicines/$id', extra: medicine);
+    final rawId = medicine['id'];
+    final id = rawId?.toString() ?? '';
+    // Ambiguous free-text queries must not open detail without a catalogue id.
+    if (id.isEmpty || int.tryParse(id) == null) {
+      return;
+    }
+    context.push('/home/medicines/$id', extra: medicine);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.background,
       appBar: AppBar(
         title: const Text('Medicine Information'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.qr_code_scanner),
-            tooltip: 'Scan Barcode',
-            onPressed: _openBarcodeScanner,
-          ),
-        ],
       ),
       body: Column(
         children: [
           _buildSearchBar(),
+          const ClinicalSafetyBanner(kind: ClinicalDisclaimerKind.medicine),
           Expanded(child: _buildBody()),
         ],
       ),
@@ -129,8 +97,9 @@ class _MedicineSearchScreenState extends State<MedicineSearchScreen> {
   }
 
   Widget _buildSearchBar() {
+    final cs = Theme.of(context).colorScheme;
     return Container(
-      color: AppTheme.primary,
+      color: cs.primary,
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
       child: TextField(
         controller: _searchController,
@@ -138,11 +107,11 @@ class _MedicineSearchScreenState extends State<MedicineSearchScreen> {
         style: const TextStyle(fontSize: 16),
         decoration: InputDecoration(
           hintText: 'Search by name, generic name...',
-          hintStyle: TextStyle(color: Colors.grey.shade500),
-          prefixIcon: const Icon(Icons.search, color: AppTheme.primary),
+          hintStyle: TextStyle(color: cs.onSurfaceVariant),
+          prefixIcon: Icon(Icons.search, color: cs.primary),
           suffixIcon: _searchController.text.isNotEmpty
               ? IconButton(
-                  icon: const Icon(Icons.clear, color: AppTheme.textSecondary),
+                  icon: Icon(Icons.clear, color: cs.onSurfaceVariant),
                   onPressed: () {
                     _searchController.clear();
                     _onSearchChanged('');
@@ -150,26 +119,29 @@ class _MedicineSearchScreenState extends State<MedicineSearchScreen> {
                 )
               : null,
           filled: true,
-          fillColor: Colors.white,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
+          fillColor: cs.surface,
+          border: const OutlineInputBorder(
+            borderRadius: AppRadius.brLg,
             borderSide: BorderSide.none,
           ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
+          enabledBorder: const OutlineInputBorder(
+            borderRadius: AppRadius.brLg,
             borderSide: BorderSide.none,
           ),
           focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: const BorderSide(color: AppTheme.primaryDark, width: 2),
+            borderRadius: AppRadius.brLg,
+            borderSide: BorderSide(color: cs.primary, width: 2),
           ),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         ),
       ),
     );
   }
 
   Widget _buildBody() {
+    final cs = Theme.of(context).colorScheme;
+
     if (_loading) return _buildShimmer();
 
     if (_error.isNotEmpty) {
@@ -179,9 +151,13 @@ class _MedicineSearchScreenState extends State<MedicineSearchScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.error_outline, color: AppTheme.error, size: 48),
+              Icon(Icons.error_outline, color: cs.error, size: 48),
               const SizedBox(height: 12),
-              Text(_error, style: const TextStyle(color: AppTheme.textSecondary), textAlign: TextAlign.center),
+              Text(
+                _error,
+                style: TextStyle(color: cs.onSurfaceVariant),
+                textAlign: TextAlign.center,
+              ),
               const SizedBox(height: 16),
               TextButton(
                 onPressed: () {
@@ -204,16 +180,16 @@ class _MedicineSearchScreenState extends State<MedicineSearchScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.medication_outlined, color: Colors.grey.shade300, size: 72),
+            Icon(Icons.medication_outlined, color: cs.outline, size: 72),
             const SizedBox(height: 16),
-            const Text(
+            Text(
               'No medicines found',
-              style: TextStyle(fontSize: 16, color: AppTheme.textSecondary),
+              style: TextStyle(fontSize: 16, color: cs.onSurfaceVariant),
             ),
             const SizedBox(height: 8),
-            const Text(
+            Text(
               'Try a different search term',
-              style: TextStyle(color: AppTheme.textSecondary, fontSize: 13),
+              style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13),
             ),
           ],
         ),
@@ -231,6 +207,7 @@ class _MedicineSearchScreenState extends State<MedicineSearchScreen> {
   }
 
   Widget _buildEmptyState() {
+    final cs = Theme.of(context).colorScheme;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -240,25 +217,25 @@ class _MedicineSearchScreenState extends State<MedicineSearchScreen> {
             Container(
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
-                color: const Color(0x1400897B),
+                color: cs.primaryContainer.withValues(alpha: 0.25),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.medication, color: AppTheme.primary, size: 56),
+              child: Icon(Icons.medication, color: cs.primary, size: 56),
             ),
             const SizedBox(height: 24),
-            const Text(
-              'Search medicines by name\nor scan barcode',
+            Text(
+              'Search medicines by name',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 16,
-                color: AppTheme.textSecondary,
+                color: cs.onSurfaceVariant,
                 height: 1.5,
               ),
             ),
             const SizedBox(height: 8),
-            const Text(
+            Text(
               'Find drug info, interactions & TGA schedule',
-              style: TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+              style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant),
               textAlign: TextAlign.center,
             ),
           ],
@@ -277,9 +254,9 @@ class _MedicineSearchScreenState extends State<MedicineSearchScreen> {
         itemBuilder: (_, __) => Container(
           margin: const EdgeInsets.only(bottom: 12),
           height: 90,
-          decoration: BoxDecoration(
+          decoration: const BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: AppRadius.brMd,
           ),
         ),
       ),
@@ -295,6 +272,9 @@ class _MedicineCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final hc = HealthcareColors.of(context);
+
     final name = medicine['name']?.toString() ?? 'Unknown';
     final genericName = medicine['generic_name']?.toString() ?? '';
     final drugClass = medicine['drug_class']?.toString() ?? '';
@@ -305,7 +285,7 @@ class _MedicineCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: AppRadius.brMd,
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Row(
@@ -313,10 +293,10 @@ class _MedicineCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: const Color(0x1A00897B),
-                  borderRadius: BorderRadius.circular(10),
+                  color: cs.primaryContainer.withValues(alpha: 0.25),
+                  borderRadius: AppRadius.brSm,
                 ),
-                child: const Icon(Icons.medication, color: AppTheme.primary, size: 24),
+                child: Icon(Icons.medication, color: cs.primary, size: 24),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -331,21 +311,21 @@ class _MedicineCard extends StatelessWidget {
                             style: const TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 15,
-                              color: AppTheme.textPrimary,
                             ),
                           ),
                         ),
                         if (tgaRegistered)
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
-                              color: const Color(0x1E388E3C),
+                              color: hc.vitaGood.withValues(alpha: 0.10),
                               borderRadius: BorderRadius.circular(6),
                             ),
-                            child: const Text(
+                            child: Text(
                               'TGA',
                               style: TextStyle(
-                                color: AppTheme.success,
+                                color: hc.vitaGood,
                                 fontSize: 10,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -357,7 +337,8 @@ class _MedicineCard extends StatelessWidget {
                       const SizedBox(height: 3),
                       Text(
                         genericName,
-                        style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13),
+                        style: TextStyle(
+                            color: cs.onSurfaceVariant, fontSize: 13),
                       ),
                     ],
                     if (drugClass.isNotEmpty || schedule.isNotEmpty) ...[
@@ -367,26 +348,31 @@ class _MedicineCard extends StatelessWidget {
                         children: [
                           if (drugClass.isNotEmpty)
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 3),
                               decoration: BoxDecoration(
-                                color: const Color(0x1400897B),
-                                borderRadius: BorderRadius.circular(20),
+                                color: cs.primaryContainer
+                                    .withValues(alpha: 0.25),
+                                borderRadius: AppRadius.brFull,
                               ),
                               child: Text(
                                 drugClass,
-                                style: const TextStyle(color: AppTheme.primary, fontSize: 11),
+                                style: TextStyle(
+                                    color: cs.primary, fontSize: 11),
                               ),
                             ),
                           if (schedule.isNotEmpty)
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 3),
                               decoration: BoxDecoration(
-                                color: const Color(0x1AFF6F00),
-                                borderRadius: BorderRadius.circular(20),
+                                color: hc.vitaWarning.withValues(alpha: 0.08),
+                                borderRadius: AppRadius.brFull,
                               ),
                               child: Text(
                                 schedule,
-                                style: const TextStyle(color: AppTheme.accent, fontSize: 11),
+                                style: TextStyle(
+                                    color: hc.vitaWarning, fontSize: 11),
                               ),
                             ),
                         ],
@@ -395,73 +381,10 @@ class _MedicineCard extends StatelessWidget {
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right, color: AppTheme.textSecondary),
+              Icon(Icons.chevron_right, color: cs.onSurfaceVariant),
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _BarcodeScannerPage extends StatefulWidget {
-  const _BarcodeScannerPage();
-
-  @override
-  State<_BarcodeScannerPage> createState() => _BarcodeScannerPageState();
-}
-
-class _BarcodeScannerPageState extends State<_BarcodeScannerPage> {
-  bool _scanned = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Scan Barcode')),
-      body: Stack(
-        children: [
-          MobileScanner(
-            onDetect: (capture) {
-              if (_scanned) return;
-              final barcodes = capture.barcodes;
-              if (barcodes.isNotEmpty) {
-                final rawValue = barcodes.first.rawValue;
-                if (rawValue != null && rawValue.isNotEmpty) {
-                  _scanned = true;
-                  Navigator.of(context).pop(rawValue);
-                }
-              }
-            },
-          ),
-          Center(
-            child: Container(
-              width: 260,
-              height: 160,
-              decoration: BoxDecoration(
-                border: Border.all(color: AppTheme.primary, width: 2.5),
-                borderRadius: BorderRadius.circular(16),
-              ),
-            ),
-          ),
-          Positioned(
-            bottom: 40,
-            left: 0,
-            right: 0,
-            child: Center(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                decoration: BoxDecoration(
-                  color: Colors.black54,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: const Text(
-                  'Align barcode within the frame',
-                  style: TextStyle(color: Colors.white, fontSize: 14),
-                ),
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }

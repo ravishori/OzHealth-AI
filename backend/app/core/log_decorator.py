@@ -1,5 +1,5 @@
-"""
-Function-level execution tracing for VitaPulse AI.
+﻿"""
+Function-level execution tracing for HealthNest.
 
 Two mechanisms:
 
@@ -11,9 +11,9 @@ Two mechanisms:
 
    Each request logs:
        ENTER  <handler_name>  <METHOD> <path>
-       OK     <handler_name>  (<duration> ms)   ← 2xx
-       WARN   <handler_name>  HTTP <4xx>         ← expected client error
-       FAIL   <handler_name>  (<duration> ms)    ← 5xx / unhandled exception
+       OK     <handler_name>  (<duration> ms)   â† 2xx
+       WARN   <handler_name>  HTTP <4xx>         â† expected client error
+       FAIL   <handler_name>  (<duration> ms)    â† 5xx / unhandled exception
 
 2. @log_fn decorator
    Apply to any async or sync helper function to get the same ENTER / OK /
@@ -23,8 +23,8 @@ Two mechanisms:
        async def my_service_function(...):
            ...
 
-All traces go to the "vitapulse.functions" logger → logs/functions.log
-(daily rotation, 7-day retention — configured in logging_config.py).
+All traces go to the "vitapulse.functions" logger â†’ logs/functions.log
+(daily rotation, 7-day retention â€” configured in logging_config.py).
 """
 import asyncio
 import functools
@@ -35,13 +35,13 @@ from typing import Callable, Any
 from fastapi import Request, Response, HTTPException
 from fastapi.routing import APIRoute
 
-# ── Logger (goes to functions.log via logging_config.setup_logging) ───────────
+# â”€â”€ Logger (goes to functions.log via logging_config.setup_logging) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 fn_log = logging.getLogger("vitapulse.functions")
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # 1.  FastAPI custom route class
-# ─────────────────────────────────────────────────────────────────────────────
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class LoggedAPIRoute(APIRoute):
     """
@@ -87,11 +87,11 @@ class LoggedAPIRoute(APIRoute):
 
             except HTTPException as exc:
                 duration_ms = round((time.perf_counter() - start) * 1000, 1)
-                # 4xx are expected client errors — warn, not error
+                # 4xx are expected client errors â€” warn, not error
                 level = logging.WARNING if exc.status_code < 500 else logging.ERROR
                 fn_log.log(
                     level,
-                    "HTTP%d %s (%.1f ms) — %s",
+                    "HTTP%d %s (%.1f ms) â€” %s",
                     exc.status_code,
                     route_name,
                     duration_ms,
@@ -109,7 +109,7 @@ class LoggedAPIRoute(APIRoute):
             except Exception as exc:
                 duration_ms = round((time.perf_counter() - start) * 1000, 1)
                 fn_log.error(
-                    "FAIL %s (%.1f ms) — %s: %s",
+                    "FAIL %s (%.1f ms) â€” %s: %s",
                     route_name,
                     duration_ms,
                     type(exc).__name__,
@@ -128,9 +128,9 @@ class LoggedAPIRoute(APIRoute):
         return traced_handler
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # 2.  General-purpose @log_fn decorator
-# ─────────────────────────────────────────────────────────────────────────────
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def log_fn(func: Callable) -> Callable:
     """
@@ -168,7 +168,7 @@ def log_fn(func: Callable) -> Callable:
             except Exception as exc:
                 duration_ms = round((time.perf_counter() - start) * 1000, 1)
                 fn_log.error(
-                    "FAIL %s (%.1f ms) — %s: %s",
+                    "FAIL %s (%.1f ms) â€” %s: %s",
                     qualified_name,
                     duration_ms,
                     type(exc).__name__,
@@ -207,7 +207,7 @@ def log_fn(func: Callable) -> Callable:
             except Exception as exc:
                 duration_ms = round((time.perf_counter() - start) * 1000, 1)
                 fn_log.error(
-                    "FAIL %s (%.1f ms) — %s: %s",
+                    "FAIL %s (%.1f ms) â€” %s: %s",
                     qualified_name,
                     duration_ms,
                     type(exc).__name__,

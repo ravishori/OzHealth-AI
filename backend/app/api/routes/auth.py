@@ -12,6 +12,7 @@ from app.core.security import (
     generate_otp, hash_otp, verify_otp,
     create_access_token, create_refresh_token, decode_token,
 )
+from app.core.deps import get_current_user, token_version_matches
 from app.core.config import settings
 from app.core.exceptions import RateLimitError, ValidationError as AppValidationError
 from app.core.logging_config import audit_log
@@ -22,6 +23,10 @@ from app.schemas.auth import (
     LoginRequest, RefreshTokenRequest, TokenResponse
 )
 from app.services.cache_service import CacheService
+
+
+def _user_token_version(user) -> int:
+    return int(getattr(user, "token_version", 0) or 0)
 
 # ---------------------------------------------------------------------------
 # Stored-procedure call helpers
@@ -36,7 +41,6 @@ async def _sp_insert_otp(
     purpose: str,
     expires_at: datetime,
 ) -> None:
-    """Insert an OTP record via sp_insert_otp stored procedure."""
     await db.execute(
         text("SELECT * FROM sp_insert_otp(:identifier, :otp_code, :otp_hash, :purpose, :expires_at)"),
         {
@@ -51,7 +55,6 @@ async def _sp_insert_otp(
 
 @log_fn
 async def _fn_get_valid_otps(db: AsyncSession, identifier: str, purpose: str):
-    """Return rows from fn_get_valid_otps — each row has id, otp_code, otp_hash, created_at."""
     result = await db.execute(
         text("SELECT * FROM fn_get_valid_otps(:identifier, :purpose)"),
         {"identifier": identifier, "purpose": purpose},
@@ -61,7 +64,6 @@ async def _fn_get_valid_otps(db: AsyncSession, identifier: str, purpose: str):
 
 @log_fn
 async def _sp_mark_otp_used(db: AsyncSession, otp_id: int) -> None:
-    """Mark a single OTP as used via sp_mark_otp_used stored procedure."""
     await db.execute(
         text("SELECT sp_mark_otp_used(:otp_id)"),
         {"otp_id": otp_id},
@@ -78,7 +80,6 @@ async def _sp_insert_user(
     gender: str | None,
     blood_group: str | None,
 ):
-    """Insert a user via sp_insert_user and return the first result row (id, created_at)."""
     result = await db.execute(
         text(
             "SELECT * FROM sp_insert_user("
@@ -99,7 +100,6 @@ async def _sp_insert_user(
 
 @log_fn
 async def _fn_get_user_by_identifier(db: AsyncSession, identifier: str):
-    """Look up an active user by email or phone via fn_get_user_by_identifier."""
     result = await db.execute(
         text("SELECT * FROM fn_get_user_by_identifier(:identifier)"),
         {"identifier": identifier},
@@ -109,20 +109,76 @@ async def _fn_get_user_by_identifier(db: AsyncSession, identifier: str):
 router = APIRouter(route_class=LoggedAPIRoute)
 logger = logging.getLogger(__name__)
 
+
 # =========================
-# Utility Functions
+# Identifier helpers
 # =========================
 
 def is_email(identifier: str) -> bool:
     return "@" in identifier and "." in identifier.split("@")[-1]
 
 
+def _normalize_phone(raw: str) -> str | None:
+    """
+    Normalize a phone number to E.164 format (+<country_code><number>).
+
+    Handles:
+    - Already E.164:       +61412345678   ->  +61412345678
+    - Australian local:    0412345678     ->  +61412345678
+    - Indian 10-digit:     9876543210     ->  +919876543210
+    - Spaces/dashes:       +61 4XX XXX    ->  +614XXXXXXXX
+    Returns None for unrecognisable formats.
+    """
+    # Strip whitespace, dashes, parentheses, dots
+    cleaned = re.sub(r"[\s\-\.\(\)]", "", raw)
+
+    # Already E.164 (+<7-15 digits>)
+    if re.match(r"^\+\d{7,15}$", cleaned):
+        return cleaned
+
+    # Digits only from here
+    digits_only = re.sub(r"\D", "", cleaned)
+    if not digits_only:
+        return None
+
+    # Australian local 10-digit: starts with 0 (mobile 04XX, landline 02/03/07/08)
+    if digits_only.startswith("0") and len(digits_only) == 10:
+        return f"+61{digits_only[1:]}"
+
+    # Indian 10-digit mobile: starts with 6, 7, 8, or 9
+    if re.match(r"^[6-9]\d{9}$", digits_only):
+        return f"+91{digits_only}"
+
+    # Long digit string without +  — assume user omitted the leading +
+    if len(digits_only) >= 10:
+        return f"+{digits_only}"
+
+    return None
+
+
 def is_phone(identifier: str) -> bool:
-    return bool(re.match(r"^\+?[1-9]\d{7,14}$", identifier))
+    return _normalize_phone(identifier) is not None
+
+
+def _normalize_identifier(raw: str) -> str:
+    """Normalize email (lowercase) or phone (E.164). Raises 400 on bad phone format."""
+    s = raw.strip()
+    if is_email(s):
+        return s.lower()
+    normalized = _normalize_phone(s)
+    if normalized is None:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Invalid phone number. Please include your country code, "
+                "e.g. +61412345678 (Australia) or +919876543210 (India)."
+            ),
+        )
+    return normalized
 
 
 def _mask(identifier: str) -> str:
-    """Mask email/phone for safe logging."""
+    """Mask identifier for safe logging."""
     return identifier[:4] + "***" if len(identifier) > 4 else "****"
 
 
@@ -131,7 +187,6 @@ def _mask(identifier: str) -> str:
 # =========================
 
 async def _check_otp_send_rate(identifier: str):
-    """Raise RateLimitError if OTP send limit exceeded."""
     key = f"otp_rate:send:{identifier}"
     count = await CacheService.increment_counter(key, ttl=settings.OTP_SEND_WINDOW)
     if count > settings.OTP_SEND_LIMIT:
@@ -143,7 +198,6 @@ async def _check_otp_send_rate(identifier: str):
 
 
 async def _check_otp_verify_rate(identifier: str):
-    """Raise RateLimitError if OTP verification attempt limit exceeded."""
     key = f"otp_rate:verify:{identifier}"
     count = await CacheService.increment_counter(key, ttl=settings.OTP_VERIFY_WINDOW)
     if count > settings.OTP_VERIFY_LIMIT:
@@ -155,54 +209,50 @@ async def _check_otp_verify_rate(identifier: str):
 
 
 async def _clear_verify_rate(identifier: str):
-    """Clear failed attempt counter on successful verification."""
     await CacheService.delete(f"otp_rate:verify:{identifier}")
 
 
 # =========================
-# Send Email OTP (with retry)
+# Send Email OTP
 # =========================
 
-def _send_email_otp(email: str, otp: str) -> bool:
+def _send_email_otp(email: str, otp: str) -> tuple[bool, str]:
     """
-    Send OTP via SMTP.  Runs in a thread pool (called via asyncio.to_thread)
-    so it never blocks the async event loop.
-
-    Retry policy: 2 attempts, 5 s socket timeout, 1 s gap between attempts.
-    Total worst-case: 5 + 1 + 5 = 11 s — well under Dio's receiveTimeout.
+    Send OTP via SMTP (Gmail or any STARTTLS server).
+    Returns (success, error_detail).
+    Designed to run in asyncio.to_thread — never blocks the event loop.
     """
     import smtplib
     import time
     from email.mime.multipart import MIMEMultipart
     from email.mime.text import MIMEText as MIMETextPart
 
-    if not settings.SMTP_EMAIL or not settings.SMTP_PASSWORD:
-        logger.warning("SMTP credentials not configured — email OTP not sent")
-        return False
+    if not settings.SMTP_EMAIL:
+        return False, "SMTP_EMAIL not set in .env"
+    if not settings.SMTP_PASSWORD:
+        return False, (
+            "SMTP_PASSWORD not set. For Gmail use an App Password: "
+            "https://myaccount.google.com/apppasswords"
+        )
 
     subject = f"Your {settings.APP_NAME} Verification Code"
-
-    html_body = f"""
-<!DOCTYPE html>
+    html_body = f"""<!DOCTYPE html>
 <html>
-<body style="font-family: Arial, sans-serif; background:#f4f4f4; margin:0; padding:20px;">
-  <div style="max-width:480px; margin:0 auto; background:#fff; border-radius:8px; overflow:hidden;">
-    <div style="background:#00897B; padding:24px; text-align:center;">
-      <h1 style="color:#fff; margin:0; font-size:22px;">{settings.APP_NAME}</h1>
-      <p style="color:#e0f2f1; margin:4px 0 0;">Your Health Companion</p>
+<body style="font-family:Arial,sans-serif;background:#f4f4f4;margin:0;padding:20px;">
+  <div style="max-width:480px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;">
+    <div style="background:#00897B;padding:24px;text-align:center;">
+      <h1 style="color:#fff;margin:0;font-size:22px;">{settings.APP_NAME}</h1>
     </div>
     <div style="padding:32px 24px;">
-      <h2 style="color:#333; margin:0 0 8px;">Verification Code</h2>
-      <p style="color:#666; margin:0 0 24px;">
-        Use the code below to verify your identity. It expires in
-        <strong>{settings.OTP_EXPIRY_MINUTES} minutes</strong>.
+      <h2 style="color:#333;margin:0 0 8px;">Verification Code</h2>
+      <p style="color:#666;margin:0 0 24px;">
+        Use the code below to verify your identity.
+        It expires in <strong>{settings.OTP_EXPIRY_MINUTES} minutes</strong>.
       </p>
-      <div style="background:#e8f5e9; border-radius:8px; padding:20px; text-align:center; margin-bottom:24px;">
-        <span style="font-size:36px; font-weight:bold; letter-spacing:8px; color:#00897B;">
-          {otp}
-        </span>
+      <div style="background:#e8f5e9;border-radius:8px;padding:20px;text-align:center;margin-bottom:24px;">
+        <span style="font-size:36px;font-weight:bold;letter-spacing:8px;color:#00897B;">{otp}</span>
       </div>
-      <p style="color:#999; font-size:12px; margin:0;">
+      <p style="color:#999;font-size:12px;">
         Never share this code. {settings.APP_NAME} will never ask for your OTP.
       </p>
     </div>
@@ -215,39 +265,66 @@ def _send_email_otp(email: str, otp: str) -> bool:
     msg["From"] = settings.SMTP_EMAIL
     msg["To"] = email
     msg.attach(MIMETextPart(
-        f"Your {settings.APP_NAME} OTP: {otp}\nExpires in {settings.OTP_EXPIRY_MINUTES} minutes.",
+        f"Your {settings.APP_NAME} OTP: {otp}\n"
+        f"Expires in {settings.OTP_EXPIRY_MINUTES} minutes. Never share this code.",
         "plain",
     ))
     msg.attach(MIMETextPart(html_body, "html"))
 
-    # 2 attempts, 5 s timeout each → worst case 5 + 1 + 5 = 11 s (in a thread)
+    last_error = "Unknown error"
     for attempt in range(1, 3):
         try:
-            with smtplib.SMTP(settings.SMTP_SERVER, settings.SMTP_PORT, timeout=5) as server:
+            with smtplib.SMTP(settings.SMTP_SERVER, settings.SMTP_PORT, timeout=8) as server:
                 server.ehlo()
                 server.starttls()
+                server.ehlo()
                 server.login(settings.SMTP_EMAIL, settings.SMTP_PASSWORD)
                 server.sendmail(settings.SMTP_EMAIL, email, msg.as_string())
-            logger.info("OTP email sent to %s on attempt %d", _mask(email), attempt)
-            return True
+            logger.info("OTP email sent to %s (attempt %d)", _mask(email), attempt)
+            return True, ""
+        except smtplib.SMTPAuthenticationError:
+            last_error = (
+                "Gmail authentication failed. "
+                "You must use an App Password (not your Gmail password). "
+                "Generate one at https://myaccount.google.com/apppasswords"
+            )
+            logger.error("SMTP auth failed for %s — check App Password config", _mask(email))
+            break  # No retry on auth failures
+        except smtplib.SMTPRecipientsRefused:
+            last_error = f"Email address refused by server: {email}"
+            logger.error("SMTP recipient refused: %s", _mask(email))
+            break
+        except smtplib.SMTPConnectError as exc:
+            last_error = f"Cannot connect to SMTP server {settings.SMTP_SERVER}:{settings.SMTP_PORT}: {exc}"
+            logger.warning("SMTP connect error (attempt %d/2): %s", attempt, exc)
+            if attempt < 2:
+                time.sleep(2)
         except Exception as exc:
-            logger.warning("Email attempt %d/2 failed for %s: %s", attempt, _mask(email), exc)
+            last_error = str(exc)
+            logger.warning("Email send attempt %d/2 failed for %s: %s", attempt, _mask(email), exc)
             if attempt < 2:
                 time.sleep(1)
 
-    logger.error("All email send attempts failed for %s", _mask(email))
-    return False
+    logger.error("All email attempts failed for %s: %s", _mask(email), last_error)
+    return False, last_error
 
 
 # =========================
-# Send SMS OTP (lazy Twilio)
+# Send SMS OTP via Twilio
 # =========================
 
-def _send_sms_otp(phone: str, otp: str) -> bool:
-    """Send OTP via Twilio SMS. Returns True on success."""
-    if not settings.TWILIO_ACCOUNT_SID or not settings.TWILIO_AUTH_TOKEN:
-        logger.warning("Twilio credentials not configured — SMS OTP not sent")
-        return False
+def _send_sms_otp(phone: str, otp: str) -> tuple[bool, str]:
+    """
+    Send OTP via Twilio SMS. Phone MUST be in E.164 format (+<country_code><number>).
+    Returns (success, error_detail).
+    Designed to run in asyncio.to_thread — never blocks the event loop.
+    """
+    if not settings.TWILIO_ACCOUNT_SID:
+        return False, "TWILIO_ACCOUNT_SID not set in .env"
+    if not settings.TWILIO_AUTH_TOKEN:
+        return False, "TWILIO_AUTH_TOKEN not set in .env"
+    if not settings.TWILIO_PHONE_NUMBER:
+        return False, "TWILIO_PHONE_NUMBER not set in .env"
 
     try:
         from twilio.rest import Client
@@ -260,11 +337,39 @@ def _send_sms_otp(phone: str, otp: str) -> bool:
             from_=settings.TWILIO_PHONE_NUMBER,
             to=phone,
         )
-        logger.info("SMS sent SID: %s to %s", message.sid, _mask(phone))
-        return True
+        logger.info("SMS sent SID=%s to %s", message.sid, _mask(phone))
+        return True, ""
+
     except Exception as exc:
-        logger.error("SMS send failed for %s: %s", _mask(phone), exc)
-        return False
+        err_str = str(exc)
+        # Map Twilio error codes to actionable messages
+        if "21211" in err_str:
+            detail = (
+                f"Invalid 'To' phone number '{phone}'. "
+                "Ensure the number includes the country code in E.164 format "
+                "(e.g. +61412345678 for Australia, +919876543210 for India)."
+            )
+        elif "21608" in err_str:
+            detail = (
+                "Twilio trial account: the destination number is not verified. "
+                "Add it at: https://console.twilio.com/us1/develop/phone-numbers/verified-caller-ids"
+            )
+        elif "21614" in err_str:
+            detail = (
+                f"Phone number '{phone}' is not a mobile/SMS-capable number."
+            )
+        elif "20003" in err_str or "Authentication Error" in err_str.lower():
+            detail = (
+                "Twilio authentication failed. "
+                "Check TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN in your .env file."
+            )
+        elif "20404" in err_str:
+            detail = "Twilio account not found. Verify TWILIO_ACCOUNT_SID is correct."
+        else:
+            detail = f"SMS delivery failed: {err_str[:300]}"
+
+        logger.error("SMS send failed for %s: %s", _mask(phone), detail)
+        return False, detail
 
 
 # =========================
@@ -273,21 +378,28 @@ def _send_sms_otp(phone: str, otp: str) -> bool:
 
 @router.post("/send-otp")
 async def send_otp(req: SendOTPRequest, db: AsyncSession = Depends(get_db)):
-    # Validate identifier format
-    if not is_email(req.identifier) and not is_phone(req.identifier):
-        raise HTTPException(status_code=400, detail="Invalid email or phone number format")
+    """Send an OTP to the given email or phone."""
+    identifier = _normalize_identifier(req.identifier)
 
-    # Rate limiting — max N sends per identifier per window
-    await _check_otp_send_rate(req.identifier)
+    # For login, reject if no account exists — don't waste an OTP delivery
+    if req.purpose == "auth":
+        existing = await _fn_get_user_by_identifier(db, identifier)
+        if existing is None:
+            raise HTTPException(
+                status_code=404,
+                detail="No account found for this email or phone. Please register first.",
+            )
+
+    # Rate limiting
+    await _check_otp_send_rate(identifier)
 
     otp_code = generate_otp()
-    otp_hash = hash_otp(otp_code)  # HMAC-SHA256 hex digest — never stored plaintext alone
+    otp_hash = hash_otp(otp_code)
     expires_at = datetime.now(timezone.utc) + timedelta(minutes=settings.OTP_EXPIRY_MINUTES)
 
-    # Persist both plain OTP (for dev logging) and hash (for verification) via stored procedure
     await _sp_insert_otp(
         db,
-        identifier=req.identifier,
+        identifier=identifier,
         otp_code=otp_code,
         otp_hash=otp_hash,
         purpose=req.purpose,
@@ -295,72 +407,102 @@ async def send_otp(req: SendOTPRequest, db: AsyncSession = Depends(get_db)):
     )
     await db.commit()
 
-    # Send OTP in a thread-pool so the blocking smtplib / twilio calls
-    # never freeze the async event loop (SMTP can take 10 s × 3 retries).
+    # Send via thread pool (SMTP / Twilio are blocking I/O)
     sent = False
-    if is_email(req.identifier):
-        sent = await asyncio.to_thread(_send_email_otp, req.identifier, otp_code)
-    else:
-        sent = await asyncio.to_thread(_send_sms_otp, req.identifier, otp_code)
+    delivery_error = ""
+    channel = ""
 
-    # Dev fallback — log the FULL OTP so developers can test without email/SMS
-    # This line must be removed (or disabled by setting DEBUG=false) before going to production
+    if is_email(identifier):
+        channel = "email"
+        sent, delivery_error = await asyncio.to_thread(_send_email_otp, identifier, otp_code)
+    else:
+        channel = "sms"
+        sent, delivery_error = await asyncio.to_thread(_send_sms_otp, identifier, otp_code)
+
+    # Never log plaintext OTP (including DEBUG). Masked identifier + delivery only.
     if settings.DEBUG:
         logger.info(
-            "[DEV OTP] identifier=%s  otp=%s  purpose=%s  expires=%s",
-            _mask(req.identifier), otp_code, req.purpose, expires_at.strftime("%H:%M:%S UTC"),
+            "[DEV OTP] identifier=%s  purpose=%s  delivered=%s  expires=%s",
+            _mask(identifier), req.purpose, sent,
+            expires_at.strftime("%H:%M:%S UTC"),
         )
 
-    if not sent and not settings.DEBUG:
-        raise HTTPException(
-            status_code=502,
-            detail="Failed to send OTP. Please check your email/phone and try again.",
-        )
+    # Log delivery failures to DB (always) and email alert (production only)
+    if not sent:
+        from app.services.alert_service import send_alert_email, log_error_to_db
 
-    # Audit log — masked identifier, no OTP code
+        await log_error_to_db(
+            source="backend",
+            severity="error",
+            error_type=f"OTPDeliveryFailure:{channel.upper()}",
+            message=delivery_error,
+            context=f"send_otp:{channel}",
+            platform="server",
+        )
+        if not settings.DEBUG:
+            await send_alert_email(
+                subject=f"OTP Delivery Failure ({channel.upper()})",
+                source="backend",
+                error_type=f"OTPDeliveryFailure:{channel.upper()}",
+                message=delivery_error,
+                extra={
+                    "identifier": _mask(identifier),
+                    "channel": channel,
+                    "purpose": req.purpose,
+                },
+            )
+            raise HTTPException(
+                status_code=502,
+                detail="Something went wrong. Please try again later.",
+            )
+
     audit_log.info(
         "otp_sent",
-        extra={"identifier": _mask(req.identifier), "purpose": req.purpose},
+        extra={
+            "identifier": _mask(identifier),
+            "purpose": req.purpose,
+            "channel": channel,
+            "delivered": sent,
+        },
     )
 
-    return {
-        "message": "OTP sent successfully" if sent else "OTP generated (dev mode — check server logs)",
+    response: dict = {
+        "message": f"OTP sent to your {channel}." if sent else "OTP generated (dev mode — check server logs).",
         "expires_in_minutes": settings.OTP_EXPIRY_MINUTES,
+        "channel": channel,
+        "delivered": sent,
     }
+    # In dev mode expose delivery errors to help fix config issues
+    if settings.DEBUG and delivery_error:
+        response["_dev_error"] = delivery_error
+
+    return response
 
 
 # =========================
-# VERIFY OTP (standalone — does NOT consume the OTP)
+# VERIFY OTP (standalone)
 # =========================
 
 @router.post("/verify-otp")
 async def verify_otp_check(req: VerifyOTPRequest, db: AsyncSession = Depends(get_db)):
-    """
-    Pre-validate an OTP without consuming it or creating a session.
+    """Pre-validate an OTP without consuming it or creating a session."""
+    identifier = _normalize_identifier(req.identifier)
+    await _check_otp_verify_rate(identifier)
 
-    Use this before the final register/login step to give the user instant
-    feedback that their code is correct, without committing any DB changes.
-    The OTP remains valid and must be re-sent to /register or /login to
-    actually authenticate.
-    """
-    # Apply the same rate limit as full verification
-    await _check_otp_verify_rate(req.identifier)
-
-    # Fetch valid (unexpired, unused) OTPs
-    otp_rows = await _fn_get_valid_otps(db, req.identifier, req.purpose)
-
-    # Constant-time comparison against stored hashes
+    otp_rows = await _fn_get_valid_otps(db, identifier, req.purpose)
     for row in otp_rows:
         if verify_otp(req.otp_code, row.otp_hash):
-            # Clear failed-attempt counter on success
-            await _clear_verify_rate(req.identifier)
+            await _clear_verify_rate(identifier)
             audit_log.info(
                 "otp_pre_verified",
-                extra={"identifier": _mask(req.identifier), "purpose": req.purpose},
+                extra={"identifier": _mask(identifier), "purpose": req.purpose},
             )
             return {"valid": True, "message": "OTP verified successfully"}
 
-    raise HTTPException(status_code=400, detail="Invalid or expired OTP")
+    raise HTTPException(
+        status_code=400,
+        detail="Invalid or expired OTP. Please check the code and try again.",
+    )
 
 
 # =========================
@@ -369,13 +511,10 @@ async def verify_otp_check(req: VerifyOTPRequest, db: AsyncSession = Depends(get
 
 @router.post("/register", response_model=TokenResponse)
 async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
-    # Rate limiting on verification attempts
-    await _check_otp_verify_rate(req.identifier)
+    identifier = _normalize_identifier(req.identifier)
+    await _check_otp_verify_rate(identifier)
 
-    # Fetch all valid (unexpired, unused) OTPs via stored function
-    otp_rows = await _fn_get_valid_otps(db, req.identifier, "register")
-
-    # Verify OTP against stored HMAC-SHA256 hashes (constant-time comparison)
+    otp_rows = await _fn_get_valid_otps(db, identifier, "register")
     matched_otp = None
     for row in otp_rows:
         if verify_otp(req.otp_code, row.otp_hash):
@@ -383,18 +522,19 @@ async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
             break
 
     if not matched_otp:
-        raise HTTPException(status_code=400, detail="Invalid or expired OTP")
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid or expired OTP. Please request a new code and try again.",
+        )
 
-    # Clear failed-attempt counter on success
-    await _clear_verify_rate(req.identifier)
+    await _clear_verify_rate(identifier)
 
-    # Create the user via stored procedure (raises 23505 on duplicate email/phone)
     try:
         user_row = await _sp_insert_user(
             db,
             name=req.name,
-            email=req.identifier if is_email(req.identifier) else None,
-            phone=req.identifier if not is_email(req.identifier) else None,
+            email=identifier if is_email(identifier) else None,
+            phone=identifier if not is_email(identifier) else None,
             age=req.age,
             gender=req.gender,
             blood_group=req.blood_group,
@@ -402,29 +542,41 @@ async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
     except Exception as exc:
         err_str = str(exc)
         if "23505" in err_str or "already exists" in err_str.lower():
-            raise HTTPException(status_code=400, detail="User already registered")
-        raise
+            raise HTTPException(
+                status_code=400,
+                detail="An account with this email/phone already exists. Please login instead.",
+            )
+        logger.error("User creation error: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail="Registration failed. Please try again later.")
 
-    # Mark OTP as used via stored procedure
     await _sp_mark_otp_used(db, matched_otp.id)
     await db.commit()
 
-    user_id = user_row.id
-    user_name = req.name
-
     audit_log.info(
         "user_registered",
-        extra={"user_id": user_id, "identifier": _mask(req.identifier)},
+        extra={"user_id": user_row.id, "identifier": _mask(identifier)},
     )
 
-    access_token = create_access_token({"sub": str(user_id)})
-    refresh_token = create_refresh_token({"sub": str(user_id)})
+    tv = _user_token_version(user_row)
+    result = await db.execute(select(User).where(User.id == int(user_row.id)))
+    orm_user = result.scalar_one_or_none()
+    if orm_user is not None:
+        tv = _user_token_version(orm_user)
+
+    access_token = create_access_token(
+        {"sub": str(user_row.id)},
+        token_version=tv,
+    )
+    refresh_token = create_refresh_token(
+        {"sub": str(user_row.id)},
+        token_version=tv,
+    )
 
     return TokenResponse(
         access_token=access_token,
         refresh_token=refresh_token,
-        user_id=user_id,
-        name=user_name,
+        user_id=user_row.id,
+        name=req.name,
         is_new_user=True,
     )
 
@@ -435,13 +587,10 @@ async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
 
 @router.post("/login", response_model=TokenResponse)
 async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
-    # Rate limiting on verification attempts
-    await _check_otp_verify_rate(req.identifier)
+    identifier = _normalize_identifier(req.identifier)
+    await _check_otp_verify_rate(identifier)
 
-    # Fetch all valid OTPs via stored function
-    otp_rows = await _fn_get_valid_otps(db, req.identifier, "auth")
-
-    # Verify OTP against stored HMAC-SHA256 hashes (constant-time comparison)
+    otp_rows = await _fn_get_valid_otps(db, identifier, "auth")
     matched_otp = None
     for row in otp_rows:
         if verify_otp(req.otp_code, row.otp_hash):
@@ -449,26 +598,43 @@ async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
             break
 
     if not matched_otp:
-        raise HTTPException(status_code=400, detail="Invalid or expired OTP")
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid or expired OTP. Please request a new code and try again.",
+        )
 
-    await _clear_verify_rate(req.identifier)
+    await _clear_verify_rate(identifier)
 
-    # Fetch user via stored function
-    user_row = await _fn_get_user_by_identifier(db, req.identifier)
+    user_row = await _fn_get_user_by_identifier(db, identifier)
     if not user_row:
-        raise HTTPException(status_code=404, detail="User not found. Please register first.")
+        raise HTTPException(
+            status_code=404,
+            detail="No account found for this email/phone. Please register first.",
+        )
 
-    # Mark OTP as used via stored procedure
     await _sp_mark_otp_used(db, matched_otp.id)
     await db.commit()
 
     audit_log.info(
         "user_login",
-        extra={"user_id": user_row.id, "identifier": _mask(req.identifier)},
+        extra={"user_id": user_row.id, "identifier": _mask(identifier)},
     )
 
-    access_token = create_access_token({"sub": str(user_row.id)})
-    refresh_token = create_refresh_token({"sub": str(user_row.id)})
+    # Prefer ORM token_version when SP row omits the column
+    tv = _user_token_version(user_row)
+    result = await db.execute(select(User).where(User.id == int(user_row.id)))
+    orm_user = result.scalar_one_or_none()
+    if orm_user is not None:
+        tv = _user_token_version(orm_user)
+
+    access_token = create_access_token(
+        {"sub": str(user_row.id)},
+        token_version=tv,
+    )
+    refresh_token = create_refresh_token(
+        {"sub": str(user_row.id)},
+        token_version=tv,
+    )
 
     return TokenResponse(
         access_token=access_token,
@@ -490,16 +656,22 @@ async def refresh_token(req: RefreshTokenRequest, db: AsyncSession = Depends(get
     token_type = payload.get("type")
 
     if not user_id or token_type != "refresh":
-        raise HTTPException(status_code=401, detail="Invalid refresh token")
+        raise HTTPException(status_code=401, detail="Invalid refresh token. Please login again.")
 
     result = await db.execute(select(User).where(User.id == int(user_id)))
     user = result.scalar_one_or_none()
-
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    access_token = create_access_token({"sub": str(user.id)})
-    new_refresh_token = create_refresh_token({"sub": str(user.id)})
+    if not token_version_matches(payload, user):
+        raise HTTPException(
+            status_code=401,
+            detail="Session has been revoked. Please login again.",
+        )
+
+    tv = _user_token_version(user)
+    access_token = create_access_token({"sub": str(user.id)}, token_version=tv)
+    new_refresh_token = create_refresh_token({"sub": str(user.id)}, token_version=tv)
 
     return TokenResponse(
         access_token=access_token,
@@ -507,3 +679,27 @@ async def refresh_token(req: RefreshTokenRequest, db: AsyncSession = Depends(get
         user_id=user.id,
         name=user.name,
     )
+
+
+# =========================
+# LOGOUT (HN-AUTH-007)
+# =========================
+
+@router.post("/logout")
+async def logout(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Invalidate this user's JWT session by bumping ``token_version``.
+
+    All access and refresh tokens issued with the previous version are rejected
+    immediately on the next validation/refresh. Does not affect other users.
+    """
+    current_user.token_version = _user_token_version(current_user) + 1
+    await db.commit()
+    audit_log.info(
+        "user_logout",
+        extra={"user_id": current_user.id},
+    )
+    return {"message": "Logged out"}

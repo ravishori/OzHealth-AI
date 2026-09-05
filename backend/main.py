@@ -1,20 +1,15 @@
 import os
 import logging
-import smtplib
 import traceback
-from datetime import datetime, timezone
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
 
 # ── Logging must be configured FIRST, before any other imports ────────────────
 from app.core.logging_config import setup_logging, audit_log, cleanup_old_logs
 setup_logging()
-cleanup_old_logs(retain_days=7)   # purge log backups older than 7 days at startup
+cleanup_old_logs(retain_days=7)
 
 from fastapi import FastAPI, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from sqlalchemy.exc import SQLAlchemyError
@@ -23,47 +18,31 @@ from app.core.config import settings
 from app.core.database import engine, Base
 from app.core.deps import get_current_user
 from app.core.exceptions import AppException, RateLimitError
+from app.core.request_context import get_correlation_id
 from app.models.user import User
 from app.middleware.logging_middleware import RequestLoggingMiddleware
 from app.middleware.security_middleware import SecurityHeadersMiddleware
+from app.middleware.correlation_middleware import CorrelationIdMiddleware
+from app.services.alert_service import send_alert_email, log_error_to_db
 from app.api.routes import (
     auth, users, family, records, prescriptions,
     medicines, reminders, health_metrics, ai_assistant, emergency, nearby,
+    interactions, symptoms, lab_analysis, insights, eprescriptions,
 )
+from app.api.routes import errors as errors_route
+from app.api.routes import medicine_cache as medicine_cache_route
+from app.api.routes import enrichment    as enrichment_route
+
+# Ensure models are imported so Base.metadata knows about their tables.
+from app.models import medicine_search_cache    as _medicine_cache_model     # noqa: F401
+from app.models import medicine_enrichment_log  as _medicine_enrichment_log  # noqa: F401
+from app.models.error_log import ErrorLog as _error_log_model                # noqa: F401
+
+# Backward-compatible aliases (used by auth.py inline import — kept for safety)
+_send_alert_email = send_alert_email
+_log_error_to_db  = log_error_to_db
 
 logger = logging.getLogger(__name__)
-
-
-# ─── Alert email helper ───────────────────────────────────────────────────────
-
-def _send_alert_email(subject: str, body: str) -> None:
-    """
-    Send a plain-text alert email to SMTP_EMAIL (self-notification).
-    Fire-and-forget — never raises so it can't break request handling.
-    Only runs when SMTP credentials are configured.
-    """
-    try:
-        if not settings.SMTP_EMAIL or not settings.SMTP_PASSWORD:
-            return  # SMTP not configured — skip silently
-
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = f"[{settings.APP_NAME}] {subject}"
-        msg["From"] = settings.SMTP_EMAIL
-        msg["To"] = settings.SMTP_EMAIL  # alert goes back to the developer
-
-        timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
-        full_body = f"{body}\n\nTimestamp: {timestamp}\nEnvironment: {os.getenv('ENV', 'development')}"
-        msg.attach(MIMEText(full_body, "plain"))
-
-        with smtplib.SMTP(settings.SMTP_SERVER, settings.SMTP_PORT, timeout=10) as server:
-            server.ehlo()
-            server.starttls()
-            server.login(settings.SMTP_EMAIL, settings.SMTP_PASSWORD)
-            server.sendmail(settings.SMTP_EMAIL, settings.SMTP_EMAIL, msg.as_string())
-
-        logger.info("Alert email sent: %s", subject)
-    except Exception as exc:
-        logger.warning("Alert email failed (non-critical): %s", exc)
 
 
 # ─── App ──────────────────────────────────────────────────────────────────────
@@ -72,30 +51,35 @@ app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
     description=(
-        "VitaPulse AI — AI-powered personal health companion for Australia.\n\n"
+        "HealthNest — personal health companion for Australia.\n\n"
         "**Features**: OTP auth, family health management, prescription OCR, "
         "TGA medicine search, AI health chat (Claude), medication reminders, "
         "emergency SOS, and nearby services via OpenStreetMap."
     ),
-    contact={"name": "VitaPulse AI Team"},
+    contact={"name": "HealthNest Team"},
     license_info={"name": "Private"},
 )
 
-# ─── Middleware (order matters — outermost first) ─────────────────────────────
+# ─── Middleware (order matters — outermost wraps first) ───────────────────────
 
-# 1. GZip compression (compress responses > 1KB)
+# 1. GZip compression
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # 2. Security headers
 app.add_middleware(SecurityHeadersMiddleware)
 
-# 3. Request/response logging
+# 3. Request/response logging (reads correlation_id set in step 4)
 app.add_middleware(RequestLoggingMiddleware)
 
-# 4. CORS
+# 4. Correlation ID — MUST be inner-most so it runs FIRST and sets the ID
+#    before the logging middleware reads it.  Starlette executes middleware
+#    in reverse-add order (last-added = first-executed for Starlette).
+app.add_middleware(CorrelationIdMiddleware)
+
+# 5. CORS — explicit origins only (never '*' with credentials)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],   # tighten in production
+    allow_origins=settings.get_cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -121,11 +105,13 @@ async def app_exception_handler(request: Request, exc: AppException):
             "AppException [%s] %s %s: %s",
             exc.error_code, request.method, request.url.path, exc.message,
         )
-    return JSONResponse(
-        status_code=exc.status_code,
-        content={"error": exc.error_code, "message": exc.message},
-        headers=headers,
-    )
+
+    cid = get_correlation_id()
+    body: dict = {"error": exc.error_code, "message": exc.message}
+    if cid:
+        body["correlation_id"] = cid
+
+    return JSONResponse(status_code=exc.status_code, content=body, headers=headers)
 
 
 @app.exception_handler(RequestValidationError)
@@ -136,64 +122,104 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         for e in exc.errors()
     ]
     logger.info("Validation error on %s %s: %s", request.method, request.url.path, errors)
-    return JSONResponse(
-        status_code=422,
-        content={"error": "VALIDATION_ERROR", "message": "Invalid request data", "details": errors},
-    )
+    cid = get_correlation_id()
+    body = {"error": "VALIDATION_ERROR", "message": "Invalid request data", "details": errors}
+    if cid:
+        body["correlation_id"] = cid
+    return JSONResponse(status_code=422, content=body)
 
 
 @app.exception_handler(SQLAlchemyError)
 async def db_exception_handler(request: Request, exc: SQLAlchemyError):
     """Handle database errors — log full details, return safe message to client."""
+    tb_str = traceback.format_exc()
+    client_ip = request.client.host if request.client else "unknown"
+    cid = get_correlation_id()
+
     logger.error(
         "Database error on %s %s: %s",
         request.method, request.url.path, exc, exc_info=True,
     )
-    _send_alert_email(
-        subject="🔴 Database Error",
-        body=(
-            f"A database error occurred.\n\n"
-            f"Request: {request.method} {request.url}\n"
-            f"Error: {exc}\n\n"
-            f"Traceback:\n{traceback.format_exc()}"
-        ),
+    await send_alert_email(
+        subject="Database Error",
+        source="backend",
+        error_type=type(exc).__name__,
+        message=str(exc),
+        tb=tb_str,
+        extra={
+            "request":        f"{request.method} {request.url}",
+            "client_ip":      client_ip,
+            "correlation_id": cid,
+        },
     )
-    return JSONResponse(
-        status_code=503,
-        content={"error": "DATABASE_ERROR", "message": "A database error occurred. Please try again."},
+    await log_error_to_db(
+        source="backend",
+        severity="critical",
+        error_type=type(exc).__name__,
+        message=str(exc),
+        stack_trace=tb_str,
+        http_method=request.method,
+        request_path=request.url.path,
+        client_ip=client_ip,
+        correlation_id=cid,
     )
+
+    body = {
+        "error":   "DATABASE_ERROR",
+        "message": "Something went wrong. Please try again later.",
+    }
+    if cid:
+        body["correlation_id"] = cid
+    return JSONResponse(status_code=503, content=body)
 
 
 @app.exception_handler(Exception)
 async def generic_exception_handler(request: Request, exc: Exception):
     """Catch-all handler — prevents stack traces leaking to clients."""
+    tb_str = traceback.format_exc()
+    client_ip = request.client.host if request.client else "unknown"
+    cid = get_correlation_id()
+
     logger.error(
         "Unhandled exception on %s %s: %s",
         request.method, request.url.path, exc, exc_info=True,
     )
-    _send_alert_email(
-        subject="🔴 Unhandled Server Error (500)",
-        body=(
-            f"An unhandled exception occurred.\n\n"
-            f"Request: {request.method} {request.url}\n"
-            f"Error type: {type(exc).__name__}\n"
-            f"Error: {exc}\n\n"
-            f"Traceback:\n{traceback.format_exc()}"
-        ),
+    await send_alert_email(
+        subject="Unhandled Server Error (500)",
+        source="backend",
+        error_type=type(exc).__name__,
+        message=str(exc),
+        tb=tb_str,
+        extra={
+            "request":        f"{request.method} {request.url}",
+            "client_ip":      client_ip,
+            "user_agent":     request.headers.get("user-agent", "unknown"),
+            "correlation_id": cid,
+        },
     )
-    return JSONResponse(
-        status_code=500,
-        content={"error": "INTERNAL_ERROR", "message": "An unexpected error occurred."},
+    await log_error_to_db(
+        source="backend",
+        severity="critical",
+        error_type=type(exc).__name__,
+        message=str(exc),
+        stack_trace=tb_str,
+        http_method=request.method,
+        request_path=request.url.path,
+        client_ip=client_ip,
+        correlation_id=cid,
     )
 
-# ─── Static file serving for uploads ─────────────────────────────────────────
+    body = {
+        "error":   "INTERNAL_ERROR",
+        "message": "Something went wrong. Please try again later.",
+    }
+    if cid:
+        body["correlation_id"] = cid
+    return JSONResponse(status_code=500, content=body)
 
+# Uploads directory exists for authenticated downloads via GET /api/v1/records/{id}/file.
+# Do NOT mount a public StaticFiles path at /uploads (P0: PHI leakage).
 os.makedirs(settings.LOCAL_UPLOAD_DIR, exist_ok=True)
-app.mount(
-    "/uploads",
-    StaticFiles(directory=settings.LOCAL_UPLOAD_DIR),
-    name="uploads",
-)
 
 # ─── API Routes ───────────────────────────────────────────────────────────────
 
@@ -210,6 +236,14 @@ app.include_router(health_metrics.router, prefix=f"{PREFIX}/health-metrics",  ta
 app.include_router(ai_assistant.router,   prefix=f"{PREFIX}/ai",              tags=["AI Assistant"])
 app.include_router(emergency.router,      prefix=f"{PREFIX}/emergency",       tags=["Emergency"])
 app.include_router(nearby.router,         prefix=f"{PREFIX}/nearby",          tags=["Nearby Services"])
+app.include_router(interactions.router,   prefix=f"{PREFIX}/interactions",    tags=["Drug Interactions"])
+app.include_router(symptoms.router,       prefix=f"{PREFIX}/symptoms",        tags=["Symptom Checker"])
+app.include_router(lab_analysis.router,   prefix=f"{PREFIX}/lab-analysis",    tags=["Lab Report Analyzer"])
+app.include_router(insights.router,         prefix=f"{PREFIX}/insights",         tags=["Health Insights"])
+app.include_router(eprescriptions.router,  prefix=f"{PREFIX}/eprescriptions",   tags=["ePrescriptions"])
+app.include_router(errors_route.router,    prefix=f"{PREFIX}/errors",           tags=["Error Reporting"])
+app.include_router(medicine_cache_route.router, prefix=PREFIX,                  tags=["Medicine Cache"])
+app.include_router(enrichment_route.router,     prefix=f"{PREFIX}/enrichment",  tags=["Medicine Enrichment"])
 
 
 # ─── Startup / Shutdown ───────────────────────────────────────────────────────
@@ -224,10 +258,7 @@ async def on_startup():
     from app.services.reminder_worker import start_scheduler
     start_scheduler()
 
-    # ── Weekend log cleanup scheduler ─────────────────────────────────────────
-    # Runs every Saturday at 00:05 local time.
-    # cleanup_old_logs() also runs at startup as an immediate safety net; the
-    # Saturday job handles the recurring weekly purge during long-running deploys.
+    # Weekly log cleanup scheduler (Saturday 00:05 AEDT)
     from apscheduler.schedulers.asyncio import AsyncIOScheduler
     from apscheduler.triggers.cron import CronTrigger
     from app.core.logging_config import cleanup_old_logs
@@ -242,16 +273,20 @@ async def on_startup():
         replace_existing=True,
     )
     log_scheduler.start()
-    app.state.log_scheduler = log_scheduler   # keep reference for graceful shutdown
+    app.state.log_scheduler = log_scheduler
     logger.info("Weekly log cleanup scheduler started (runs every Saturday 00:05 AEDT)")
 
-    # Validate external service credentials (warn if missing)
+    # Validate external service credentials
     from app.services.notification_service import validate_external_services
     validate_external_services()
 
     # Warm up Redis connection
     from app.services.cache_service import _get_redis
     await _get_redis()
+
+    # Start nightly medicine-cache refresh worker (02:30 AEDT/AEST)
+    from app.workers.cache_refresh_worker import start_scheduler as start_cache_worker
+    app.state.cache_worker = start_cache_worker()
 
     logger.info("%s v%s started", settings.APP_NAME, settings.APP_VERSION)
     logger.info("API docs: http://localhost:8000/docs")
@@ -263,9 +298,11 @@ async def on_shutdown():
     from app.services.reminder_worker import stop_scheduler
     stop_scheduler()
 
-    # Gracefully stop the log cleanup scheduler
     if hasattr(app.state, "log_scheduler"):
         app.state.log_scheduler.shutdown(wait=False)
+
+    from app.workers.cache_refresh_worker import stop_scheduler as stop_cache_worker
+    stop_cache_worker()
 
     logger.info("%s shut down", settings.APP_NAME)
     audit_log.info("app_shutdown", extra={"version": settings.APP_VERSION})
@@ -276,10 +313,10 @@ async def on_shutdown():
 @app.get("/", tags=["Meta"])
 async def root():
     return {
-        "app": settings.APP_NAME,
-        "version": settings.APP_VERSION,
-        "status": "running",
-        "docs": "/docs",
+        "app":        settings.APP_NAME,
+        "version":    settings.APP_VERSION,
+        "status":     "running",
+        "docs":       "/docs",
         "api_prefix": PREFIX,
     }
 
@@ -291,15 +328,17 @@ async def health():
 
 
 @app.get(f"{PREFIX}/admin/stats", tags=["Admin"])
-async def admin_stats(
-    current_user: User = Depends(get_current_user),
-):
-    """High-level platform statistics (authenticated)."""
+async def admin_stats(current_user: User = Depends(get_current_user)):
+    """Platform statistics — restricted to DEVELOPER_EMAILS (empty list = deny all)."""
+    from app.core.admin_auth import assert_admin_access
+
+    assert_admin_access(current_user.email)
+
     from sqlalchemy import text
     from app.core.database import AsyncSessionLocal
 
     async with AsyncSessionLocal() as db:
-        result = await db.execute(text("SELECT * FROM fn_user_stats()"))  # nosec — stored proc, no user input
+        result = await db.execute(text("SELECT * FROM fn_user_stats()"))  # nosec
         row = result.mappings().first()
 
     return dict(row) if row else {}

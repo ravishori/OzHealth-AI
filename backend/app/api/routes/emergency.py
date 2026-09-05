@@ -89,7 +89,13 @@ async def trigger_sos(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Trigger SOS: notifies all emergency contacts via push notification."""
+    """
+    SOS (dial-first honesty mode).
+
+    Records GPS and contact list for the user, but does NOT claim SMS/push
+    delivery to contacts until a real notifier is integrated. Automatic
+    contact SMS/FCM is not enabled (P0 mock removal).
+    """
     result = await db.execute(
         select(EmergencyContact).where(EmergencyContact.user_id == current_user.id)
     )
@@ -101,43 +107,43 @@ async def trigger_sos(
             f"https://maps.google.com/?q={req.latitude},{req.longitude}"
         )
 
-    # Send push to user's own device (if FCM token exists)
-    notified = 0
-    tasks = []
-    if current_user.fcm_token:
-        tasks.append(
-            NotificationService.send(
-                current_user.fcm_token,
-                title="🚨 SOS Sent",
-                body="Your SOS alert has been sent to your emergency contacts.",
-                data={"type": "sos_confirmation"},
-            )
-        )
-
-    # NOTE: In production, integrate Twilio/AWS SNS to SMS contacts.
-    # For now we log and send FCM to contacts who are also app users (via phone lookup).
     import logging
     log = logging.getLogger(__name__)
     log.warning(
-        "[SOS] User=%s | Location=%s | Contacts=%d",
-        current_user.name,
-        location_url,
+        "[SOS] dial-first mode user_id=%s contacts=%d location_set=%s",
+        current_user.id,
         len(contacts),
+        bool(location_url),
     )
-    for c in contacts:
-        log.warning("  → %s (%s)", c.name, c.phone)
-        notified += 1
 
-    if tasks:
-        await asyncio.gather(*tasks, return_exceptions=True)
+    # Optional confirmation push to the *user's own* device only — not contacts.
+    if current_user.fcm_token:
+        await asyncio.gather(
+            NotificationService.send(
+                current_user.fcm_token,
+                title="SOS recorded",
+                body="Call 000 for emergencies. Contacts were not auto-notified.",
+                data={"type": "sos_confirmation"},
+            ),
+            return_exceptions=True,
+        )
+
+    n_contacts = len(contacts)
+    if n_contacts == 0:
+        msg = (
+            "SOS recorded. No emergency contacts saved. "
+            "Call 000 now if this is an emergency."
+        )
+    else:
+        msg = (
+            f"SOS recorded with your location. "
+            f"{n_contacts} contact(s) are listed for you to call manually — "
+            f"they were NOT automatically notified by SMS or push. Call 000 if needed."
+        )
 
     return SOSResponse(
         success=True,
-        contacts_notified=notified,
-        message=(
-            f"SOS alert sent to {notified} emergency contact(s)."
-            if notified
-            else "SOS triggered — no emergency contacts configured. Please add contacts."
-        ),
+        contacts_notified=0,  # honest: no auto-notify until SMS/FCM-to-contacts ships
+        message=msg,
         location_url=location_url,
     )

@@ -7,8 +7,9 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:vitapulse_ai/core/network/api_client.dart';
-import 'package:vitapulse_ai/core/theme/app_theme.dart';
 import 'package:vitapulse_ai/shared/widgets/loading_button.dart';
+import 'package:vitapulse_ai/theme/design_tokens/app_radius.dart';
+import 'package:vitapulse_ai/theme/theme_extensions.dart';
 
 class UploadRecordScreen extends StatefulWidget {
   const UploadRecordScreen({super.key});
@@ -29,18 +30,21 @@ class _UploadRecordScreenState extends State<UploadRecordScreen> {
   bool _isImage = false;
   bool _loading = false;
 
-  static const _recordTypes = [
-    _RecordTypeOption('Prescription', 'prescription',
-        Icons.receipt_long_outlined, Color(0xFF1565C0)),
-    _RecordTypeOption('Lab Report', 'lab_report', Icons.biotech_outlined,
-        Color(0xFF558B2F)),
-    _RecordTypeOption(
-        'Radiology', 'radiology', Icons.image_search_outlined, Color(0xFF6A1B9A)),
-    _RecordTypeOption('Discharge Summary', 'discharge',
-        Icons.local_hospital_outlined, Color(0xFFE65100)),
-    _RecordTypeOption('Other', 'other', Icons.insert_drive_file_outlined,
-        AppTheme.primary),
-  ];
+  List<_RecordTypeOption> _buildRecordTypes(
+      HealthcareColors hc, ColorScheme cs) {
+    return [
+      _RecordTypeOption('Prescription', 'prescription',
+          Icons.receipt_long_outlined, hc.prescription),
+      _RecordTypeOption('Lab Report', 'lab_report', Icons.biotech_outlined,
+          hc.labReport),
+      _RecordTypeOption('Radiology', 'radiology',
+          Icons.image_search_outlined, hc.radiology),
+      _RecordTypeOption('Discharge Summary', 'discharge_summary',
+          Icons.local_hospital_outlined, hc.discharge),
+      _RecordTypeOption('Other', 'other',
+          Icons.insert_drive_file_outlined, cs.primary),
+    ];
+  }
 
   @override
   void dispose() {
@@ -80,10 +84,11 @@ class _UploadRecordScreenState extends State<UploadRecordScreen> {
   }
 
   Future<void> _showFilePicker() async {
+    final cs = Theme.of(context).colorScheme;
     await showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: AppRadius.bottomSheet,
       ),
       builder: (ctx) => SafeArea(
         child: Padding(
@@ -93,17 +98,17 @@ class _UploadRecordScreenState extends State<UploadRecordScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text('Select File',
-                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+                  style: TextStyle(
+                      fontSize: 17, fontWeight: FontWeight.bold)),
               const SizedBox(height: 16),
               ListTile(
                 leading: Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: const Color(0x1A00897B),
-                    borderRadius: BorderRadius.circular(10),
+                    color: cs.primary.withValues(alpha: 0.08),
+                    borderRadius: AppRadius.brSm,
                   ),
-                  child: const Icon(Icons.image_outlined,
-                      color: AppTheme.primary),
+                  child: Icon(Icons.image_outlined, color: cs.primary),
                 ),
                 title: const Text('Choose Image'),
                 subtitle: const Text('JPG, PNG from gallery'),
@@ -116,11 +121,10 @@ class _UploadRecordScreenState extends State<UploadRecordScreen> {
                 leading: Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: const Color(0x1AD32F2F),
-                    borderRadius: BorderRadius.circular(10),
+                    color: cs.error.withValues(alpha: 0.07),
+                    borderRadius: AppRadius.brSm,
                   ),
-                  child:
-                      const Icon(Icons.picture_as_pdf, color: AppTheme.error),
+                  child: Icon(Icons.picture_as_pdf, color: cs.error),
                 ),
                 title: const Text('Choose PDF'),
                 subtitle: const Text('PDF document'),
@@ -144,14 +148,6 @@ class _UploadRecordScreenState extends State<UploadRecordScreen> {
       initialDate: _recordDate ?? now,
       firstDate: DateTime(1990),
       lastDate: now,
-      builder: (ctx, child) => Theme(
-        data: Theme.of(ctx).copyWith(
-          colorScheme: const ColorScheme.light(
-            primary: AppTheme.primary,
-          ),
-        ),
-        child: child!,
-      ),
     );
     if (picked != null) {
       setState(() => _recordDate = picked);
@@ -162,9 +158,9 @@ class _UploadRecordScreenState extends State<UploadRecordScreen> {
     if (!_formKey.currentState!.validate()) return;
     if (_selectedFile == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please select a file to upload'),
-          backgroundColor: AppTheme.error,
+        SnackBar(
+          content: const Text('Please select a file to upload'),
+          backgroundColor: Theme.of(context).colorScheme.error,
         ),
       );
       return;
@@ -175,10 +171,10 @@ class _UploadRecordScreenState extends State<UploadRecordScreen> {
       final formData = FormData.fromMap({
         'title': _titleCtrl.text.trim(),
         'record_type': _recordType,
-        if (_notesCtrl.text.trim().isNotEmpty) 'notes': _notesCtrl.text.trim(),
+        if (_notesCtrl.text.trim().isNotEmpty)
+          'notes': _notesCtrl.text.trim(),
         if (_recordDate != null)
-          'record_date':
-              DateFormat('yyyy-MM-dd').format(_recordDate!),
+          'record_date': DateFormat('yyyy-MM-dd').format(_recordDate!),
         'file': await MultipartFile.fromFile(
           _selectedFile!.path,
           filename: _selectedFileName,
@@ -188,10 +184,11 @@ class _UploadRecordScreenState extends State<UploadRecordScreen> {
       await ApiClient.uploadFile('/records/upload', formData);
 
       if (mounted) {
+        final hc = HealthcareColors.of(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Record uploaded successfully'),
-            backgroundColor: AppTheme.success,
+          SnackBar(
+            content: const Text('Record uploaded successfully'),
+            backgroundColor: hc.vitaGood,
           ),
         );
         context.pop(true);
@@ -199,9 +196,9 @@ class _UploadRecordScreenState extends State<UploadRecordScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Upload failed. Please try again.'),
-            backgroundColor: AppTheme.error,
+          SnackBar(
+            content: const Text('Upload failed. Please try again.'),
+            backgroundColor: Theme.of(context).colorScheme.error,
           ),
         );
       }
@@ -212,6 +209,10 @@ class _UploadRecordScreenState extends State<UploadRecordScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final hc = HealthcareColors.of(context);
+    final recordTypes = _buildRecordTypes(hc, cs);
+
     return Scaffold(
       appBar: AppBar(title: const Text('Upload Record')),
       body: SingleChildScrollView(
@@ -225,13 +226,12 @@ class _UploadRecordScreenState extends State<UploadRecordScreen> {
               _label('Record Type *'),
               const SizedBox(height: 6),
               DropdownButtonFormField<String>(
-                value: _recordType,
+                initialValue: _recordType,
                 decoration: const InputDecoration(
                   hintText: 'Select record type',
-                  prefixIcon:
-                      Icon(Icons.insert_drive_file_outlined),
+                  prefixIcon: Icon(Icons.insert_drive_file_outlined),
                 ),
-                items: _recordTypes
+                items: recordTypes
                     .map(
                       (opt) => DropdownMenuItem(
                         value: opt.value,
@@ -292,25 +292,24 @@ class _UploadRecordScreenState extends State<UploadRecordScreen> {
                   padding: const EdgeInsets.symmetric(
                       horizontal: 16, vertical: 14),
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade50,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.grey.shade300),
+                    color: cs.surface,
+                    borderRadius: AppRadius.brMd,
+                    border: Border.all(color: cs.outline),
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.calendar_today_outlined,
-                          size: 20, color: AppTheme.textSecondary),
+                      Icon(Icons.calendar_today_outlined,
+                          size: 20, color: cs.onSurfaceVariant),
                       const SizedBox(width: 12),
                       Text(
                         _recordDate != null
-                            ? DateFormat('dd MMM yyyy')
-                                .format(_recordDate!)
+                            ? DateFormat('dd MMM yyyy').format(_recordDate!)
                             : 'Select date (optional)',
                         style: TextStyle(
                           fontSize: 15,
                           color: _recordDate != null
-                              ? AppTheme.textPrimary
-                              : Colors.grey.shade500,
+                              ? cs.onSurface
+                              : cs.onSurfaceVariant,
                         ),
                       ),
                       const Spacer(),
@@ -318,9 +317,8 @@ class _UploadRecordScreenState extends State<UploadRecordScreen> {
                         GestureDetector(
                           onTap: () =>
                               setState(() => _recordDate = null),
-                          child: const Icon(Icons.clear,
-                              size: 18,
-                              color: AppTheme.textSecondary),
+                          child: Icon(Icons.clear,
+                              size: 18, color: cs.onSurfaceVariant),
                         ),
                     ],
                   ),
@@ -334,8 +332,8 @@ class _UploadRecordScreenState extends State<UploadRecordScreen> {
               GestureDetector(
                 onTap: _loading ? null : _showFilePicker,
                 child: _selectedFile != null
-                    ? _buildFilePreview()
-                    : _buildFilePickerPlaceholder(),
+                    ? _buildFilePreview(cs)
+                    : _buildFilePickerPlaceholder(cs),
               ),
               const SizedBox(height: 32),
 
@@ -353,37 +351,35 @@ class _UploadRecordScreenState extends State<UploadRecordScreen> {
     );
   }
 
-  Widget _buildFilePickerPlaceholder() {
+  Widget _buildFilePickerPlaceholder(ColorScheme cs) {
     return Container(
       height: 150,
       decoration: BoxDecoration(
-        color: const Color(0x0A00897B),
-        borderRadius: BorderRadius.circular(12),
+        color: cs.primary.withValues(alpha: 0.08),
+        borderRadius: AppRadius.brMd,
         border: Border.all(
-          color: const Color(0x6600897B),
+          color: cs.primary.withValues(alpha: 0.4),
           style: BorderStyle.solid,
           width: 1.5,
         ),
       ),
-      child: const Center(
+      child: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.cloud_upload_outlined,
-                size: 40, color: AppTheme.primary),
-            SizedBox(height: 10),
+            Icon(Icons.cloud_upload_outlined, size: 40, color: cs.primary),
+            const SizedBox(height: 10),
             Text(
               'Tap to select file',
               style: TextStyle(
-                  color: AppTheme.primary,
+                  color: cs.primary,
                   fontWeight: FontWeight.w600,
                   fontSize: 15),
             ),
-            SizedBox(height: 4),
+            const SizedBox(height: 4),
             Text(
               'Supports JPG, PNG, PDF',
-              style: TextStyle(
-                  color: AppTheme.textSecondary, fontSize: 12),
+              style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12),
             ),
           ],
         ),
@@ -391,24 +387,24 @@ class _UploadRecordScreenState extends State<UploadRecordScreen> {
     );
   }
 
-  Widget _buildFilePreview() {
+  Widget _buildFilePreview(ColorScheme cs) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: AppRadius.brMd,
         border: Border.all(
-            color: const Color(0x6600897B), width: 1.5),
+            color: cs.primary.withValues(alpha: 0.4), width: 1.5),
         boxShadow: [
           BoxShadow(
-              color: const Color(0x0D000000), blurRadius: 6),
+              color: Colors.black.withValues(alpha: 0.04), blurRadius: 6),
         ],
       ),
       child: Column(
         children: [
           if (_isImage)
             ClipRRect(
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(10)),
+              borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(AppRadius.md)),
               child: Image.file(
                 _selectedFile!,
                 height: 180,
@@ -420,28 +416,27 @@ class _UploadRecordScreenState extends State<UploadRecordScreen> {
             Container(
               height: 100,
               decoration: BoxDecoration(
-                color: const Color(0x0FD32F2F),
+                color: cs.error.withValues(alpha: 0.06),
                 borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(10)),
+                    top: Radius.circular(AppRadius.md)),
               ),
-              child: const Center(
+              child: Center(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.picture_as_pdf,
-                        size: 44, color: AppTheme.error),
-                    SizedBox(height: 6),
+                    Icon(Icons.picture_as_pdf, size: 44, color: cs.error),
+                    const SizedBox(height: 6),
                     Text('PDF Document',
                         style: TextStyle(
-                            color: AppTheme.error,
+                            color: cs.error,
                             fontWeight: FontWeight.w500)),
                   ],
                 ),
               ),
             ),
           Padding(
-            padding: const EdgeInsets.symmetric(
-                horizontal: 14, vertical: 10),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             child: Row(
               children: [
                 Icon(
@@ -449,15 +444,13 @@ class _UploadRecordScreenState extends State<UploadRecordScreen> {
                       ? Icons.image_outlined
                       : Icons.picture_as_pdf,
                   size: 18,
-                  color: AppTheme.textSecondary,
+                  color: cs.onSurfaceVariant,
                 ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     _selectedFileName ?? '',
-                    style: const TextStyle(
-                        fontSize: 13,
-                        color: AppTheme.textPrimary),
+                    style: TextStyle(fontSize: 13, color: cs.onSurface),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -470,12 +463,11 @@ class _UploadRecordScreenState extends State<UploadRecordScreen> {
                   }),
                   child: Container(
                     padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      color: const Color(0x1AD32F2F),
+                    decoration: const BoxDecoration(
+                      color: Color(0x1AD32F2F),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(Icons.close,
-                        size: 16, color: AppTheme.error),
+                    child: Icon(Icons.close, size: 16, color: cs.error),
                   ),
                 ),
               ],
@@ -487,12 +479,11 @@ class _UploadRecordScreenState extends State<UploadRecordScreen> {
   }
 
   Widget _label(String text) {
+    final cs = Theme.of(context).colorScheme;
     return Text(
       text,
-      style: const TextStyle(
-          fontWeight: FontWeight.w500,
-          fontSize: 13,
-          color: AppTheme.textPrimary),
+      style: TextStyle(
+          fontWeight: FontWeight.w500, fontSize: 13, color: cs.onSurface),
     );
   }
 }

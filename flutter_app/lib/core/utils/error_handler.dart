@@ -1,8 +1,9 @@
 /// Converts raw [DioException] / any Exception into a user-friendly
-/// single-line message.  Never exposes internal stack-traces or raw
+/// single-line message. Never exposes internal stack-traces or raw
 /// Dio output to the UI.
 library error_handler;
 
+import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
 
 class AppError implements Exception {
@@ -17,14 +18,28 @@ class AppError implements Exception {
 class ErrorHandler {
   ErrorHandler._();
 
-  /// Returns a friendly [String] for any exception.
+  /// ✅ Returns a friendly message
   static String getMessage(Object e) {
     if (e is AppError) return e.message;
     if (e is DioException) return _fromDio(e);
     return 'Something went wrong. Please try again.';
   }
 
-  /// Throws [AppError] with a friendly message instead of raw [DioException].
+  /// ✅ Show error in UI (SnackBar)
+  static void show(BuildContext context, Object e) {
+    final message = getMessage(e);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(12),
+      ),
+    );
+  }
+
+  /// ✅ Throw clean error instead of raw DioException
   static Never throwFriendly(DioException e) {
     throw AppError(_fromDio(e), statusCode: e.response?.statusCode);
   }
@@ -32,16 +47,16 @@ class ErrorHandler {
   // ─────────────────────────── private ───────────────────────────────────────
 
   static String _fromDio(DioException e) {
-    // ── Connection / timeout errors (no HTTP response) ──────────────────────
     switch (e.type) {
       case DioExceptionType.connectionTimeout:
       case DioExceptionType.receiveTimeout:
       case DioExceptionType.sendTimeout:
-        return 'Connection timed out. Check your internet and try again.';
       case DioExceptionType.connectionError:
-        return 'Could not reach the server. Check your connection.';
+        return 'Something went wrong. Please try again later.';
+
       case DioExceptionType.cancel:
         return 'Request was cancelled.';
+
       default:
         break;
     }
@@ -49,7 +64,6 @@ class ErrorHandler {
     final statusCode = e.response?.statusCode;
     final data = e.response?.data;
 
-    // ── Try to extract backend message first ─────────────────────────────────
     final backendMsg = _extractBackendMessage(data);
 
     switch (statusCode) {
@@ -84,19 +98,16 @@ class ErrorHandler {
         return backendMsg ?? 'Too many attempts. Please wait a moment and try again.';
 
       case 500:
-        return 'Server error. Our team has been notified. Please try again later.';
-
       case 502:
       case 503:
       case 504:
-        return 'Service temporarily unavailable. Please try again in a moment.';
+        return 'Something went wrong. Please try again later.';
 
       default:
-        return backendMsg ?? 'An error occurred (code $statusCode). Please try again.';
+        return backendMsg ?? 'Something went wrong. Please try again later.';
     }
   }
 
-  /// Extract message from backend JSON: { "message": "..." } or { "detail": "..." }
   static String? _extractBackendMessage(dynamic data) {
     if (data is Map) {
       final msg = data['message'] ?? data['detail'];
@@ -105,20 +116,22 @@ class ErrorHandler {
     return null;
   }
 
-  /// Extract readable message from Pydantic 422 validation errors.
   static String _extract422Message(dynamic data) {
     if (data is Map) {
       final details = data['details'] as List?;
       if (details != null && details.isNotEmpty) {
         final first = details.first as Map?;
         final field = first?['field']?.toString() ?? '';
-        final msg   = first?['message']?.toString() ?? '';
+        final msg = first?['message']?.toString() ?? '';
+
         if (field.isNotEmpty && msg.isNotEmpty) return '$field: $msg';
         if (msg.isNotEmpty) return msg;
       }
+
       final backendMsg = _extractBackendMessage(data);
       if (backendMsg != null) return backendMsg;
     }
+
     return 'Validation failed. Please check your input.';
   }
 }

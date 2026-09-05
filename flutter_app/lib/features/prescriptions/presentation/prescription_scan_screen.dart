@@ -4,7 +4,8 @@ import 'package:dio/dio.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:go_router/go_router.dart';
 import 'package:vitapulse_ai/core/network/api_client.dart';
-import 'package:vitapulse_ai/core/theme/app_theme.dart';
+import 'package:vitapulse_ai/theme/design_tokens/app_radius.dart';
+import 'package:vitapulse_ai/theme/theme_extensions.dart';
 
 enum _ScanState { idle, extracting, analysing, done }
 
@@ -38,10 +39,7 @@ class _PrescriptionScanScreenState extends State<PrescriptionScanScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Could not pick image: $e'),
-            backgroundColor: AppTheme.error,
-          ),
+          SnackBar(content: Text('Could not pick image: $e')),
         );
       }
     }
@@ -53,7 +51,6 @@ class _PrescriptionScanScreenState extends State<PrescriptionScanScreen> {
 
     setState(() => _scanState = _ScanState.extracting);
 
-    // Brief delay so user sees "Extracting text..." phase
     await Future.delayed(const Duration(milliseconds: 900));
 
     if (!mounted) return;
@@ -67,50 +64,38 @@ class _PrescriptionScanScreenState extends State<PrescriptionScanScreen> {
         ),
       });
 
+      // Extract + catalogue match only — does NOT auto-save.
       final response =
-          await ApiClient.uploadFile('/prescriptions/scan', formData);
+          await ApiClient.uploadFile('/prescriptions/ocr', formData);
 
-      final data = response.data as Map<String, dynamic>;
-      final prescriptionId = data['id'] as int? ?? data['prescription_id'] as int?;
+      final data = Map<String, dynamic>.from(response.data as Map);
 
       if (!mounted) return;
-
-      if (prescriptionId != null) {
-        setState(() => _scanState = _ScanState.done);
-        await Future.delayed(const Duration(milliseconds: 400));
-        if (mounted) {
-          context.go('/home/prescriptions/$prescriptionId');
-        }
-      } else {
-        setState(() => _scanState = _ScanState.idle);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Scan completed but no ID returned from server.'),
-            backgroundColor: AppTheme.error,
-          ),
-        );
-      }
+      setState(() => _scanState = _ScanState.done);
+      await Future.delayed(const Duration(milliseconds: 300));
+      if (!mounted) return;
+      context.push(
+        '/home/prescriptions/review',
+        extra: {
+          'filePath': file.path,
+          'ocrResult': data,
+        },
+      );
+      setState(() => _scanState = _ScanState.idle);
     } on DioException catch (e) {
       if (mounted) {
         final msg = e.response?.data?['detail']?.toString() ??
             'Failed to scan prescription. Please try again.';
         setState(() => _scanState = _ScanState.idle);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(msg),
-            backgroundColor: AppTheme.error,
-            behavior: SnackBarBehavior.floating,
-          ),
+          SnackBar(content: Text(msg)),
         );
       }
     } catch (e) {
       if (mounted) {
         setState(() => _scanState = _ScanState.idle);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Unexpected error: $e'),
-            backgroundColor: AppTheme.error,
-          ),
+          SnackBar(content: Text('Unexpected error: $e')),
         );
       }
     }
@@ -125,33 +110,35 @@ class _PrescriptionScanScreenState extends State<PrescriptionScanScreen> {
       case _ScanState.extracting:
         return 'Extracting text...';
       case _ScanState.analysing:
-        return 'Analysing with AI...';
+        return 'Matching medicines…';
       case _ScanState.done:
-        return 'Done!';
+        return 'Ready for review';
       default:
         return '';
     }
   }
 
   Widget _buildSourceButtons() {
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+
     return Column(
       children: [
         const SizedBox(height: 32),
-        const Icon(Icons.document_scanner_outlined,
-            size: 72, color: AppTheme.primary),
+        Icon(Icons.document_scanner_outlined, size: 72, color: cs.primary),
         const SizedBox(height: 16),
-        const Text(
+        Text(
           'Scan Your Prescription',
-          style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: AppTheme.textPrimary),
+          style: tt.titleLarge?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: cs.onSurface,
+          ),
         ),
         const SizedBox(height: 8),
-        const Text(
+        Text(
           'Take a photo or choose from gallery to extract medication details with AI.',
           textAlign: TextAlign.center,
-          style: TextStyle(color: AppTheme.textSecondary, fontSize: 14),
+          style: tt.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
         ),
         const SizedBox(height: 40),
         Row(
@@ -186,7 +173,7 @@ class _PrescriptionScanScreenState extends State<PrescriptionScanScreen> {
       children: [
         const SizedBox(height: 16),
         ClipRRect(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: AppRadius.brLg,
           child: Image.file(
             _pickedFile!,
             width: double.infinity,
@@ -217,14 +204,16 @@ class _PrescriptionScanScreenState extends State<PrescriptionScanScreen> {
   }
 
   Widget _buildScanButton() {
+    final cs = Theme.of(context).colorScheme;
+    final hc = HealthcareColors.of(context);
+
     if (_isProcessing) {
       return Column(
         children: [
           const SizedBox(
             width: 48,
             height: 48,
-            child: CircularProgressIndicator(
-                strokeWidth: 3, color: AppTheme.primary),
+            child: CircularProgressIndicator(strokeWidth: 3),
           ),
           const SizedBox(height: 14),
           AnimatedSwitcher(
@@ -232,10 +221,11 @@ class _PrescriptionScanScreenState extends State<PrescriptionScanScreen> {
             child: Text(
               _processingLabel,
               key: ValueKey(_processingLabel),
-              style: const TextStyle(
-                  fontSize: 15,
-                  color: AppTheme.primary,
-                  fontWeight: FontWeight.w600),
+              style: TextStyle(
+                fontSize: 15,
+                color: cs.primary,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],
@@ -243,55 +233,63 @@ class _PrescriptionScanScreenState extends State<PrescriptionScanScreen> {
     }
 
     if (_scanState == _ScanState.done) {
-      return const Row(
+      return Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.check_circle, color: AppTheme.success, size: 28),
-          SizedBox(width: 8),
-          Text('Analysis complete!',
-              style:
-                  TextStyle(color: AppTheme.success, fontWeight: FontWeight.w600)),
+          Icon(Icons.check_circle, color: hc.vitaGood, size: 28),
+          const SizedBox(width: 8),
+          Text(
+            'Analysis complete!',
+            style: TextStyle(
+              color: hc.vitaGood,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ],
       );
     }
 
-    return ElevatedButton.icon(
+    return FilledButton.icon(
       onPressed: _scanPrescription,
       icon: const Icon(Icons.search),
       label: const Text('Scan & Analyse'),
-      style: ElevatedButton.styleFrom(
+      style: FilledButton.styleFrom(
         minimumSize: const Size(double.infinity, 52),
       ),
     );
   }
 
   Widget _buildTipsCard() {
+    final cs = Theme.of(context).colorScheme;
+
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0x1100897B),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0x3300897B)),
+        color: cs.primaryContainer.withValues(alpha: 0.25),
+        borderRadius: AppRadius.brMd,
+        border: Border.all(color: cs.primary.withValues(alpha: 0.2)),
       ),
-      child: const Column(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(Icons.lightbulb_outline,
-                  size: 18, color: AppTheme.primary),
-              SizedBox(width: 6),
-              Text('Tips for best results',
-                  style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: AppTheme.primary,
-                      fontSize: 13)),
+              Icon(Icons.lightbulb_outline, size: 18, color: cs.primary),
+              const SizedBox(width: 6),
+              Text(
+                'Tips for best results',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: cs.primary,
+                  fontSize: 13,
+                ),
+              ),
             ],
           ),
-          SizedBox(height: 8),
-          _TipItem(text: 'Ensure the prescription is flat and fully visible'),
-          _TipItem(text: 'Good lighting helps text extraction accuracy'),
-          _TipItem(text: 'Keep the camera steady to avoid blur'),
+          const SizedBox(height: 8),
+          const _TipItem(text: 'Ensure the prescription is flat and fully visible'),
+          const _TipItem(text: 'Good lighting helps text extraction accuracy'),
+          const _TipItem(text: 'Keep the camera steady to avoid blur'),
         ],
       ),
     );
@@ -300,15 +298,11 @@ class _PrescriptionScanScreenState extends State<PrescriptionScanScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.background,
       appBar: AppBar(
-        backgroundColor: AppTheme.primary,
-        title: const Text('Scan Prescription',
-            style: TextStyle(color: Colors.white)),
+        title: const Text('Scan Prescription'),
         centerTitle: true,
         leading: BackButton(
-          color: Colors.white,
-          onPressed: () => Navigator.of(context).maybePop(),
+          onPressed: () => context.pop(),
         ),
       ),
       body: SingleChildScrollView(
@@ -328,7 +322,7 @@ class _PrescriptionScanScreenState extends State<PrescriptionScanScreen> {
   }
 }
 
-// ─────────────────────────── Supporting widgets ───────────────────────────
+// ── Source selection card ─────────────────────────────────────────────────────
 
 class _SourceCard extends StatelessWidget {
   final IconData icon;
@@ -343,49 +337,64 @@ class _SourceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedOpacity(
-        opacity: onTap == null ? 0.5 : 1.0,
-        duration: const Duration(milliseconds: 200),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: const Color(0x4D00897B)),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0x0F000000),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              )
-            ],
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: const Color(0x1A00897B),
-                  shape: BoxShape.circle,
+    final cs = Theme.of(context).colorScheme;
+
+    return AnimatedOpacity(
+      opacity: onTap == null ? 0.5 : 1.0,
+      duration: const Duration(milliseconds: 150),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: cs.surface,
+          borderRadius: AppRadius.brLg,
+          border: Border.all(color: cs.primary.withValues(alpha: 0.3)),
+          boxShadow: [
+            BoxShadow(
+              color: cs.shadow.withValues(alpha: 0.08),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: AppRadius.brLg,
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: onTap,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 16),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: cs.primaryContainer.withValues(alpha: 0.40),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(icon, color: cs.primary, size: 32),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      label,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                        color: cs.onSurface,
+                      ),
+                    ),
+                  ],
                 ),
-                child: Icon(icon, color: AppTheme.primary, size: 32),
               ),
-              const SizedBox(height: 10),
-              Text(label,
-                  style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
-                      color: AppTheme.textPrimary)),
-            ],
+            ),
           ),
         ),
       ),
     );
   }
 }
+
+// ── Tip bullet item ───────────────────────────────────────────────────────────
 
 class _TipItem extends StatelessWidget {
   final String text;
@@ -394,17 +403,19 @@ class _TipItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
     return Padding(
       padding: const EdgeInsets.only(top: 4),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('• ',
-              style: TextStyle(color: AppTheme.primary, fontSize: 13)),
+          Text('• ', style: TextStyle(color: cs.primary, fontSize: 13)),
           Expanded(
-            child: Text(text,
-                style: const TextStyle(
-                    color: AppTheme.textSecondary, fontSize: 13)),
+            child: Text(
+              text,
+              style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13),
+            ),
           ),
         ],
       ),

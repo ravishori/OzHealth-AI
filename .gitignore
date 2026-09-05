@@ -1,0 +1,67 @@
+﻿# ============================================================
+# AI Health Companion - Git Ignore
+# ============================================================
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Cursor MCP local credentials
+.cursor/.env
+
+# .NET
+**/bin/
+**/obj/
+
+# Flutter / Dart
+flutter_app/.dart_tool/
+flutter_app/.packages
+flutter_app/.pub-cache/
+flutter_app/build/
+flutter_app/.flutter-plugins
+flutter_app/.flutter-plugins-dependencies
+flutter_app/.flutter_tool_state
+
+# IDE
+.idea/
+.vscode/
+*.user
+*.suo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Local database / backup files
+*.backup
+*.dump
+*.bak
+
+# Temporary files
+*.tmp
+*.temp
+
+
+# Application secrets
+backend/.env
+backend/serviceAccountKey.json
+**/serviceAccountKey.json
+**/google-services.json
+
+# Local credential / password files
+*password*
+*credentials*
+*secret*
+*serviceAccountKey*
+
+# Local credential dumps (HN-SEC-006) — never commit
+DATABASE_URL=*.txt
+UPSTASH*.txt
+azure.txt
+*KV_REST_API*
+psql postgresql*.txt
+superbase.txt

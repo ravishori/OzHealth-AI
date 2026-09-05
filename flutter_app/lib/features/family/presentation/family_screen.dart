@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:vitapulse_ai/core/network/api_client.dart';
-import 'package:vitapulse_ai/core/theme/app_theme.dart';
+import 'package:vitapulse_ai/theme/design_tokens/app_radius.dart';
+import 'package:vitapulse_ai/theme/theme_extensions.dart';
 
 class FamilyScreen extends StatefulWidget {
   const FamilyScreen({super.key});
@@ -26,15 +27,14 @@ class _FamilyScreenState extends State<FamilyScreen> {
       final resp = await ApiClient.get('/family/');
       final data = resp.data;
       setState(() {
-        _members = (data as List<dynamic>)
-            .cast<Map<String, dynamic>>();
+        _members = (data as List<dynamic>).cast<Map<String, dynamic>>();
       });
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to load family members'),
-            backgroundColor: AppTheme.error,
+          SnackBar(
+            content: const Text('Failed to load family members'),
+            backgroundColor: Theme.of(context).colorScheme.error,
           ),
         );
       }
@@ -56,8 +56,9 @@ class _FamilyScreenState extends State<FamilyScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child:
-                const Text('Remove', style: TextStyle(color: AppTheme.error)),
+            child: Text('Remove',
+                style: TextStyle(
+                    color: Theme.of(ctx).colorScheme.error)),
           ),
         ],
       ),
@@ -68,19 +69,20 @@ class _FamilyScreenState extends State<FamilyScreen> {
         await ApiClient.delete('/family/$id');
         setState(() => _members.removeWhere((m) => m['id'] == id));
         if (mounted) {
+          final hc = HealthcareColors.of(context);
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('$name removed'),
-              backgroundColor: AppTheme.success,
+              backgroundColor: hc.vitaGood,
             ),
           );
         }
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Failed to remove member'),
-              backgroundColor: AppTheme.error,
+            SnackBar(
+              content: const Text('Failed to remove member'),
+              backgroundColor: Theme.of(context).colorScheme.error,
             ),
           );
         }
@@ -89,6 +91,8 @@ class _FamilyScreenState extends State<FamilyScreen> {
   }
 
   void _showDetailSheet(Map<String, dynamic> member) {
+    final cs = Theme.of(context).colorScheme;
+    final hc = HealthcareColors.of(context);
     final conditions =
         (member['medical_conditions'] as List<dynamic>?)?.cast<String>() ?? [];
     final allergies =
@@ -98,7 +102,7 @@ class _FamilyScreenState extends State<FamilyScreen> {
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: AppRadius.bottomSheet,
       ),
       builder: (ctx) => DraggableScrollableSheet(
         initialChildSize: 0.55,
@@ -116,7 +120,7 @@ class _FamilyScreenState extends State<FamilyScreen> {
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
+                    color: cs.outline,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -138,11 +142,27 @@ class _FamilyScreenState extends State<FamilyScreen> {
                         const SizedBox(height: 2),
                         Text(
                           member['relationship'] as String? ?? '',
-                          style: const TextStyle(
-                              color: AppTheme.textSecondary, fontSize: 14),
+                          style: TextStyle(
+                              color: cs.onSurfaceVariant, fontSize: 14),
                         ),
                       ],
                     ),
+                  ),
+                  IconButton(
+                    tooltip: 'Edit family member',
+                    icon: const Icon(Icons.edit_outlined),
+                    onPressed: () async {
+                      Navigator.pop(ctx);
+                      final id = member['id'] as int?;
+                      if (id == null) return;
+                      final updated = await context.push<bool>(
+                        '/home/family/edit/$id',
+                        extra: member,
+                      );
+                      if (updated == true && mounted) {
+                        await _loadMembers();
+                      }
+                    },
                   ),
                 ],
               ),
@@ -162,7 +182,7 @@ class _FamilyScreenState extends State<FamilyScreen> {
                 'Medical Conditions',
                 Icons.local_hospital_outlined,
                 conditions,
-                const Color(0xFF1565C0),
+                hc.prescription,
                 'No conditions recorded',
               ),
               const SizedBox(height: 14),
@@ -170,7 +190,7 @@ class _FamilyScreenState extends State<FamilyScreen> {
                 'Allergies',
                 Icons.warning_amber_outlined,
                 allergies,
-                AppTheme.accent,
+                cs.secondary,
                 'No allergies recorded',
               ),
             ],
@@ -181,6 +201,7 @@ class _FamilyScreenState extends State<FamilyScreen> {
   }
 
   Widget _avatarCircle(String name) {
+    final cs = Theme.of(context).colorScheme;
     final initials = name
         .split(' ')
         .where((w) => w.isNotEmpty)
@@ -189,29 +210,27 @@ class _FamilyScreenState extends State<FamilyScreen> {
         .join();
     return CircleAvatar(
       radius: 26,
-      backgroundColor: const Color(0x2600897B),
+      backgroundColor: cs.primary.withValues(alpha: 0.15),
       child: Text(
         initials,
-        style: const TextStyle(
-            color: AppTheme.primary,
-            fontWeight: FontWeight.bold,
-            fontSize: 16),
+        style: TextStyle(
+            color: cs.primary, fontWeight: FontWeight.bold, fontSize: 16),
       ),
     );
   }
 
   Widget _detailRow(IconData icon, String label, String value) {
+    final cs = Theme.of(context).colorScheme;
     return Row(
       children: [
-        Icon(icon, size: 18, color: AppTheme.primary),
+        Icon(icon, size: 18, color: cs.primary),
         const SizedBox(width: 10),
         Text('$label: ',
-            style:
-                const TextStyle(color: AppTheme.textSecondary, fontSize: 14)),
+            style: TextStyle(color: cs.onSurfaceVariant, fontSize: 14)),
         Expanded(
           child: Text(value,
-              style: const TextStyle(
-                  fontWeight: FontWeight.w500, fontSize: 14)),
+              style:
+                  const TextStyle(fontWeight: FontWeight.w500, fontSize: 14)),
         ),
       ],
     );
@@ -219,6 +238,7 @@ class _FamilyScreenState extends State<FamilyScreen> {
 
   Widget _chipsBlock(String title, IconData icon, List<String> items,
       Color color, String emptyText) {
+    final cs = Theme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -234,8 +254,7 @@ class _FamilyScreenState extends State<FamilyScreen> {
         const SizedBox(height: 8),
         if (items.isEmpty)
           Text(emptyText,
-              style: const TextStyle(
-                  color: AppTheme.textSecondary, fontSize: 13))
+              style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13))
         else
           Wrap(
             spacing: 6,
@@ -245,8 +264,8 @@ class _FamilyScreenState extends State<FamilyScreen> {
                   (item) => Chip(
                     label: Text(item,
                         style: TextStyle(color: color, fontSize: 12)),
-                    backgroundColor: Color.fromRGBO(color.red, color.green, color.blue, 0.1),
-                    side: BorderSide(color: Color.fromRGBO(color.red, color.green, color.blue, 0.3)),
+                    backgroundColor: color.withValues(alpha: 0.1),
+                    side: BorderSide(color: color.withValues(alpha: 0.3)),
                     materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     padding:
                         const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
@@ -260,6 +279,7 @@ class _FamilyScreenState extends State<FamilyScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
         title: const Text('Family Members'),
@@ -269,7 +289,7 @@ class _FamilyScreenState extends State<FamilyScreen> {
           final added = await context.push('/home/family/add');
           if (added == true) _loadMembers();
         },
-        backgroundColor: AppTheme.primary,
+        backgroundColor: cs.primary,
         child: const Icon(Icons.add, color: Colors.white),
       ),
       body: _loading
@@ -281,31 +301,31 @@ class _FamilyScreenState extends State<FamilyScreen> {
                   : ListView.builder(
                       padding: const EdgeInsets.fromLTRB(16, 12, 16, 90),
                       itemCount: _members.length,
-                      itemBuilder: (ctx, i) =>
-                          _buildMemberTile(_members[i]),
+                      itemBuilder: (ctx, i) => _buildMemberTile(_members[i]),
                     ),
             ),
     );
   }
 
   Widget _buildEmptyState() {
+    final cs = Theme.of(context).colorScheme;
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(Icons.family_restroom,
-              size: 72, color: const Color(0x6600897B)),
+              size: 72, color: cs.primary.withValues(alpha: 0.4)),
           const SizedBox(height: 16),
-          const Text('No family members yet',
+          Text('No family members yet',
               style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
-                  color: AppTheme.textSecondary)),
+                  color: cs.onSurfaceVariant)),
           const SizedBox(height: 8),
-          const Text(
+          Text(
             'Add your family members to track\ntheir health profiles',
             textAlign: TextAlign.center,
-            style: TextStyle(color: AppTheme.textSecondary, fontSize: 13),
+            style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13),
           ),
           const SizedBox(height: 24),
           ElevatedButton.icon(
@@ -322,6 +342,7 @@ class _FamilyScreenState extends State<FamilyScreen> {
   }
 
   Widget _buildMemberTile(Map<String, dynamic> member) {
+    final cs = Theme.of(context).colorScheme;
     final id = member['id'] as int;
     final name = member['name'] as String? ?? 'Unknown';
     final relationship = member['relationship'] as String? ?? '';
@@ -335,10 +356,11 @@ class _FamilyScreenState extends State<FamilyScreen> {
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 20),
         decoration: BoxDecoration(
-          color: AppTheme.error,
-          borderRadius: BorderRadius.circular(12),
+          color: cs.error,
+          borderRadius: AppRadius.brMd,
         ),
-        child: const Icon(Icons.delete_outline, color: Colors.white, size: 28),
+        child:
+            const Icon(Icons.delete_outline, color: Colors.white, size: 28),
       ),
       confirmDismiss: (_) async {
         await _deleteMember(id, name);
@@ -356,13 +378,12 @@ class _FamilyScreenState extends State<FamilyScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(relationship,
-                  style: const TextStyle(
-                      color: AppTheme.textSecondary, fontSize: 13)),
+                  style:
+                      TextStyle(color: cs.onSurfaceVariant, fontSize: 13)),
               const SizedBox(height: 4),
               Row(
                 children: [
-                  if (age != null)
-                    _pill(Icons.cake_outlined, '$age yrs'),
+                  if (age != null) _pill(Icons.cake_outlined, '$age yrs'),
                   if (age != null && bloodGroup.isNotEmpty)
                     const SizedBox(width: 8),
                   if (bloodGroup.isNotEmpty)
@@ -371,8 +392,25 @@ class _FamilyScreenState extends State<FamilyScreen> {
               ),
             ],
           ),
-          trailing: const Icon(Icons.chevron_right,
-              color: AppTheme.textSecondary),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                tooltip: 'Edit family member',
+                icon: Icon(Icons.edit_outlined, color: cs.primary),
+                onPressed: () async {
+                  final updated = await context.push<bool>(
+                    '/home/family/edit/$id',
+                    extra: member,
+                  );
+                  if (updated == true && mounted) {
+                    await _loadMembers();
+                  }
+                },
+              ),
+              Icon(Icons.chevron_right, color: cs.onSurfaceVariant),
+            ],
+          ),
           onTap: () => _showDetailSheet(member),
         ),
       ),
@@ -380,13 +418,13 @@ class _FamilyScreenState extends State<FamilyScreen> {
   }
 
   Widget _pill(IconData icon, String text) {
+    final cs = Theme.of(context).colorScheme;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 13, color: AppTheme.primary),
+        Icon(icon, size: 13, color: cs.primary),
         const SizedBox(width: 3),
-        Text(text,
-            style: const TextStyle(fontSize: 12, color: AppTheme.primary)),
+        Text(text, style: TextStyle(fontSize: 12, color: cs.primary)),
       ],
     );
   }

@@ -12,6 +12,11 @@ class UserUpdate(BaseModel):
     allergies: Optional[List[str]] = None
     lifestyle_preferences: Optional[dict] = None
     fcm_token: Optional[str] = None
+    suburb: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    postcode: Optional[str] = None
+    phone2: Optional[str] = None
 
 
 class UserResponse(BaseModel):
@@ -19,14 +24,30 @@ class UserResponse(BaseModel):
     name: str
     email: Optional[str] = None
     phone: Optional[str] = None
+    phone2: Optional[str] = None
     age: Optional[int] = None
     gender: Optional[str] = None
     blood_group: Optional[str] = None
     health_conditions: Optional[List[str]] = None
     allergies: Optional[List[str]] = None
     profile_image_url: Optional[str] = None
+    suburb: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    postcode: Optional[str] = None
     is_verified: bool
     created_at: datetime
 
     class Config:
         from_attributes = True
+
+
+class RequestContactChangeRequest(BaseModel):
+    contact_type: str          # "email" or "phone"
+    new_value: str             # new email address or phone number
+
+
+class ConfirmContactChangeRequest(BaseModel):
+    contact_type: str          # "email" or "phone"
+    new_value: str             # must match what was requested
+    otp_code: str              # 6-digit OTP received on new_value

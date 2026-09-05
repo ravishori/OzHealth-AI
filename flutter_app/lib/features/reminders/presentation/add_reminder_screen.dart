@@ -1,11 +1,83 @@
-import 'package:vitapulse_ai/core/utils/error_handler.dart';
 import 'package:flutter/material.dart';
 import 'package:vitapulse_ai/core/network/api_client.dart';
-import 'package:vitapulse_ai/core/theme/app_theme.dart';
+import 'package:vitapulse_ai/core/notifications/local_reminder_notifications.dart';
 import 'package:vitapulse_ai/shared/widgets/loading_button.dart';
+import 'package:vitapulse_ai/theme/design_tokens/app_radius.dart';
+import 'package:vitapulse_ai/theme/theme_extensions.dart';
+
+/// Maps UI labels to DB CHECK values (`daily`, `twice_daily`, …).
+String medicationFrequencyToApi(String label) {
+  switch (label) {
+    case 'Daily':
+      return 'daily';
+    case 'Twice Daily':
+      return 'twice_daily';
+    case 'Three Times Daily':
+      return 'three_times_daily';
+    case 'Weekly':
+      return 'weekly';
+    case 'Monthly':
+      return 'monthly';
+    case 'As Needed':
+      return 'as_needed';
+    default:
+      return label.trim().toLowerCase().replaceAll(' ', '_');
+  }
+}
+
+/// Parse API `YYYY-MM-DD` (or ISO datetime) into a local calendar date.
+DateTime? parseReminderApiDate(dynamic raw) {
+  if (raw == null) return null;
+  final s = raw.toString().trim();
+  if (s.isEmpty) return null;
+  final parsed = DateTime.tryParse(s);
+  if (parsed == null) return null;
+  return DateTime(parsed.year, parsed.month, parsed.day);
+}
+
+/// Build create/update JSON for `/reminders` (HN-REM-009 refill_date).
+///
+/// On edit, `refill_date` is always sent (`null` clears). On create, omit when unset.
+Map<String, dynamic> buildReminderSavePayload({
+  required String medicineName,
+  required String dosage,
+  required String frequencyApi,
+  required List<String> times,
+  required String instructions,
+  required bool isEdit,
+  DateTime? startDate,
+  DateTime? endDate,
+  DateTime? refillDate,
+  int? totalQuantity,
+  int? remainingQuantity,
+  int? familyMemberId,
+}) {
+  final data = <String, dynamic>{
+    'medicine_name': medicineName,
+    'dosage': dosage,
+    'frequency': frequencyApi,
+    'times': times,
+    'instructions': instructions,
+    'family_member_id': familyMemberId,
+    if (!isEdit) 'is_active': true,
+    if (!isEdit && startDate != null)
+      'start_date': startDate.toIso8601String().split('T').first,
+    if (endDate != null) 'end_date': endDate.toIso8601String().split('T').first,
+    if (totalQuantity != null) 'total_quantity': totalQuantity,
+    if (remainingQuantity != null) 'remaining_quantity': remainingQuantity,
+  };
+  if (isEdit || refillDate != null) {
+    data['refill_date'] =
+        refillDate?.toIso8601String().split('T').first;
+  }
+  return data;
+}
 
 class AddReminderScreen extends StatefulWidget {
-  const AddReminderScreen({super.key});
+  /// When set, screen edits an existing reminder via PUT.
+  final Map<String, dynamic>? initialReminder;
+
+  const AddReminderScreen({super.key, this.initialReminder});
 
   @override
   State<AddReminderScreen> createState() => _AddReminderScreenState();
@@ -26,10 +98,18 @@ class _AddReminderScreenState extends State<AddReminderScreen> {
   List<TimeOfDay> _times = [TimeOfDay.now()];
   DateTime? _startDate;
   DateTime? _endDate;
+  DateTime? _refillDate;
   List<Map<String, dynamic>> _familyMembers = [];
   int? _selectedFamilyMemberId;
   bool _loading = false;
   bool _loadingFamily = true;
+
+  bool get _isEdit => widget.initialReminder != null;
+  int? get _editId {
+    final id = widget.initialReminder?['id'];
+    if (id is int) return id;
+    return int.tryParse(id?.toString() ?? '');
+  }
 
   static const List<String> _frequencies = [
     'Daily',
@@ -51,10 +131,71 @@ class _AddReminderScreenState extends State<AddReminderScreen> {
     }
   }
 
+  /// Maps UI labels to DB CHECK values (`daily`, `twice_daily`, …).
+  static String frequencyToApi(String label) => medicationFrequencyToApi(label);
+
+  static String _apiFrequencyToLabel(String? api) {
+    switch ((api ?? '').toLowerCase()) {
+      case 'daily':
+        return 'Daily';
+      case 'twice_daily':
+        return 'Twice Daily';
+      case 'three_times_daily':
+        return 'Three Times Daily';
+      case 'weekly':
+        return 'Weekly';
+      case 'monthly':
+        return 'Monthly';
+      case 'as_needed':
+        return 'As Needed';
+      default:
+        return 'Daily';
+    }
+  }
+
+  static TimeOfDay? _parseTime(String raw) {
+    final parts = raw.split(':');
+    if (parts.length < 2) return null;
+    final h = int.tryParse(parts[0]);
+    final m = int.tryParse(parts[1]);
+    if (h == null || m == null) return null;
+    return TimeOfDay(hour: h, minute: m);
+  }
+
   @override
   void initState() {
     super.initState();
     _startDate = DateTime.now();
+    final initial = widget.initialReminder;
+    if (initial != null) {
+      _medicineNameController.text =
+          initial['medicine_name']?.toString() ?? '';
+      _dosageController.text = initial['dosage']?.toString() ?? '';
+      _instructionsController.text =
+          initial['instructions']?.toString() ?? '';
+      _frequency = _apiFrequencyToLabel(initial['frequency']?.toString());
+      final times = initial['times'];
+      if (times is List && times.isNotEmpty) {
+        _times = times
+            .map((e) => _parseTime(e.toString()))
+            .whereType<TimeOfDay>()
+            .toList();
+        if (_times.isEmpty) _times = [TimeOfDay.now()];
+      }
+      _startDate = parseReminderApiDate(initial['start_date']) ?? _startDate;
+      _endDate = parseReminderApiDate(initial['end_date']);
+      _refillDate = parseReminderApiDate(initial['refill_date']);
+      final tq = initial['total_quantity'];
+      if (tq != null) _totalQuantityController.text = tq.toString();
+      final rq = initial['remaining_quantity'];
+      if (rq != null) _remainingQuantityController.text = rq.toString();
+      final fm = initial['family_member_id'];
+      if (fm is int) {
+        _selectedFamilyMemberId = fm;
+      } else if (fm != null) {
+        _selectedFamilyMemberId = int.tryParse(fm.toString());
+      }
+    }
     _loadFamilyMembers();
   }
 
@@ -101,12 +242,6 @@ class _AddReminderScreenState extends State<AddReminderScreen> {
     final picked = await showTimePicker(
       context: context,
       initialTime: _times[index],
-      builder: (ctx, child) => Theme(
-        data: Theme.of(ctx).copyWith(
-          colorScheme: const ColorScheme.light(primary: AppTheme.primary),
-        ),
-        child: child!,
-      ),
     );
     if (picked != null) {
       setState(() => _times[index] = picked);
@@ -114,19 +249,17 @@ class _AddReminderScreenState extends State<AddReminderScreen> {
   }
 
   Future<void> _pickDate({required bool isStart}) async {
-    final initial = isStart ? (_startDate ?? DateTime.now()) : (_endDate ?? DateTime.now().add(const Duration(days: 30)));
-    final firstDate = isStart ? DateTime.now().subtract(const Duration(days: 365)) : (_startDate ?? DateTime.now());
+    final initial = isStart
+        ? (_startDate ?? DateTime.now())
+        : (_endDate ?? DateTime.now().add(const Duration(days: 30)));
+    final firstDate = isStart
+        ? DateTime.now().subtract(const Duration(days: 365))
+        : (_startDate ?? DateTime.now());
     final picked = await showDatePicker(
       context: context,
       initialDate: initial,
       firstDate: firstDate,
       lastDate: DateTime.now().add(const Duration(days: 365 * 3)),
-      builder: (ctx, child) => Theme(
-        data: Theme.of(ctx).copyWith(
-          colorScheme: const ColorScheme.light(primary: AppTheme.primary),
-        ),
-        child: child!,
-      ),
     );
     if (picked != null) {
       setState(() {
@@ -139,6 +272,20 @@ class _AddReminderScreenState extends State<AddReminderScreen> {
           _endDate = picked;
         }
       });
+    }
+  }
+
+  Future<void> _pickRefillDate() async {
+    final today = DateTime.now();
+    final initial = _refillDate ?? today.add(const Duration(days: 7));
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial.isBefore(today) ? today : initial,
+      firstDate: today,
+      lastDate: today.add(const Duration(days: 365 * 3)),
+    );
+    if (picked != null) {
+      setState(() => _refillDate = DateTime(picked.year, picked.month, picked.day));
     }
   }
 
@@ -156,6 +303,7 @@ class _AddReminderScreenState extends State<AddReminderScreen> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
+    if (_loading) return;
 
     setState(() => _loading = true);
 
@@ -163,46 +311,92 @@ class _AddReminderScreenState extends State<AddReminderScreen> {
       return '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
     }).toList();
 
-    final data = {
-      'medicine_name': _medicineNameController.text.trim(),
-      'dosage': _dosageController.text.trim(),
-      'frequency': _frequency,
-      'times': timesFormatted,
-      'instructions': _instructionsController.text.trim(),
-      'start_date': _startDate?.toIso8601String().split('T').first,
-      if (_endDate != null) 'end_date': _endDate!.toIso8601String().split('T').first,
-      if (_totalQuantityController.text.trim().isNotEmpty)
-        'total_quantity': int.tryParse(_totalQuantityController.text.trim()),
-      if (_remainingQuantityController.text.trim().isNotEmpty)
-        'remaining_quantity': int.tryParse(_remainingQuantityController.text.trim()),
-      if (_selectedFamilyMemberId != null) 'family_member_id': _selectedFamilyMemberId,
-      'is_active': true,
-    };
+    final data = buildReminderSavePayload(
+      medicineName: _medicineNameController.text.trim(),
+      dosage: _dosageController.text.trim(),
+      frequencyApi: frequencyToApi(_frequency),
+      times: timesFormatted,
+      instructions: _instructionsController.text.trim(),
+      isEdit: _isEdit,
+      startDate: _startDate,
+      endDate: _endDate,
+      refillDate: _refillDate,
+      totalQuantity: int.tryParse(_totalQuantityController.text.trim()),
+      remainingQuantity:
+          int.tryParse(_remainingQuantityController.text.trim()),
+      familyMemberId: _selectedFamilyMemberId,
+    );
 
     try {
-      await ApiClient.post('/reminders/', data: data);
+      late final Map<String, dynamic> saved;
+      if (_isEdit && _editId != null) {
+        final resp = await ApiClient.put('/reminders/$_editId', data: data);
+        saved = resp.data is Map
+            ? Map<String, dynamic>.from(resp.data as Map)
+            : <String, dynamic>{};
+      } else {
+        final resp = await ApiClient.post('/reminders/', data: data);
+        saved = resp.data is Map
+            ? Map<String, dynamic>.from(resp.data as Map)
+            : <String, dynamic>{};
+      }
+      final scheduleId = saved['id'] as int? ??
+          _editId ??
+          DateTime.now().millisecondsSinceEpoch % 100000;
+      final scheduled =
+          await LocalReminderNotifications.scheduleMedicationReminders(
+        scheduleId: scheduleId,
+        medicineName: _medicineNameController.text.trim(),
+        times: timesFormatted,
+        dosage: _dosageController.text.trim(),
+        frequencyApi: frequencyToApi(_frequency),
+        startDate: _startDate,
+        refillDate: _refillDate,
+      );
       if (mounted) {
+        final hc = HealthcareColors.of(context);
+        final forWhom = saved['family_member_name']?.toString();
+        final whoBit = (forWhom != null && forWhom.isNotEmpty)
+            ? ' for $forWhom'
+            : '';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Row(
               children: [
-                const Icon(Icons.check_circle, color: Colors.white),
+                Icon(
+                  scheduled
+                      ? Icons.check_circle
+                      : Icons.notifications_off_outlined,
+                  color: Colors.white,
+                ),
                 const SizedBox(width: 8),
-                Text('Reminder set for ${_medicineNameController.text.trim()}'),
+                Expanded(
+                  child: Text(
+                    scheduled
+                        ? '${_isEdit ? 'Reminder updated' : 'Reminder set'}'
+                            '${whoBit.isEmpty ? '' : whoBit} '
+                            '(on-device notification scheduled)'
+                        : 'Reminder saved$whoBit, but notification permission is off. '
+                            'Enable notifications in system settings to get alerts.',
+                  ),
+                ),
               ],
             ),
-            backgroundColor: AppTheme.success,
+            backgroundColor: scheduled ? hc.vitaGood : hc.vitaWarning,
           ),
         );
-        Navigator.of(context).pop();
+        Navigator.of(context).pop(true);
       }
     } catch (e) {
-      setState(() => _loading = false);
       if (mounted) {
+        setState(() => _loading = false);
+        final msg = e.toString().contains('404')
+            ? 'Could not save reminder. Check the selected family member and try again.'
+            : 'Failed to save reminder. Please try again.';
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to create reminder. Please try again.'),
-            backgroundColor: AppTheme.error,
+          SnackBar(
+            content: Text(msg),
+            backgroundColor: Theme.of(context).colorScheme.error,
           ),
         );
       }
@@ -211,15 +405,17 @@ class _AddReminderScreenState extends State<AddReminderScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: AppTheme.background,
-      appBar: AppBar(title: const Text('Add Reminder')),
+      backgroundColor: cs.surface,
+      appBar: AppBar(title: Text(_isEdit ? 'Edit Reminder' : 'Add Reminder')),
       body: Form(
         key: _formKey,
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            _SectionHeader(title: 'Medicine Details', icon: Icons.medication),
+            const _SectionHeader(
+                title: 'Medicine Details', icon: Icons.medication),
             const SizedBox(height: 12),
 
             // Medicine name
@@ -230,7 +426,10 @@ class _AddReminderScreenState extends State<AddReminderScreen> {
                 hintText: 'e.g. Paracetamol 500mg',
                 prefixIcon: Icon(Icons.medication_outlined),
               ),
-              validator: (v) => (v == null || v.trim().isEmpty) ? 'Medicine name is required' : null,
+              validator: (v) =>
+                  (v == null || v.trim().isEmpty)
+                      ? 'Medicine name is required'
+                      : null,
             ),
             const SizedBox(height: 14),
 
@@ -242,16 +441,17 @@ class _AddReminderScreenState extends State<AddReminderScreen> {
                 hintText: 'e.g. 1 tablet, 5ml',
                 prefixIcon: Icon(Icons.scale),
               ),
-              validator: (v) => (v == null || v.trim().isEmpty) ? 'Dosage is required' : null,
+              validator: (v) =>
+                  (v == null || v.trim().isEmpty) ? 'Dosage is required' : null,
             ),
             const SizedBox(height: 20),
 
-            _SectionHeader(title: 'Schedule', icon: Icons.schedule),
+            const _SectionHeader(title: 'Schedule', icon: Icons.schedule),
             const SizedBox(height: 12),
 
             // Frequency dropdown
             DropdownButtonFormField<String>(
-              value: _frequency,
+              initialValue: _frequency,
               decoration: const InputDecoration(
                 labelText: 'Frequency *',
                 prefixIcon: Icon(Icons.repeat),
@@ -269,10 +469,10 @@ class _AddReminderScreenState extends State<AddReminderScreen> {
                 _times.length == 1
                     ? 'Reminder Time'
                     : 'Reminder Times (${_times.length})',
-                style: const TextStyle(
+                style: TextStyle(
                   fontWeight: FontWeight.w600,
                   fontSize: 14,
-                  color: AppTheme.textPrimary,
+                  color: cs.onSurface,
                 ),
               ),
               const SizedBox(height: 8),
@@ -288,33 +488,36 @@ class _AddReminderScreenState extends State<AddReminderScreen> {
                   padding: const EdgeInsets.only(bottom: 10),
                   child: InkWell(
                     onTap: () => _pickTime(i),
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: AppRadius.brMd,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 14),
                       decoration: BoxDecoration(
-                        color: Colors.grey.shade50,
-                        border: Border.all(color: Colors.grey.shade300),
-                        borderRadius: BorderRadius.circular(12),
+                        color: cs.surface,
+                        border: Border.all(color: cs.outline),
+                        borderRadius: AppRadius.brMd,
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.access_time, color: AppTheme.primary, size: 20),
+                          Icon(Icons.access_time, color: cs.primary, size: 20),
                           const SizedBox(width: 12),
                           Text(
                             label,
-                            style: const TextStyle(color: AppTheme.textSecondary, fontSize: 14),
+                            style: TextStyle(
+                                color: cs.onSurfaceVariant, fontSize: 14),
                           ),
                           const Spacer(),
                           Text(
                             _formatTime(_times[i]),
-                            style: const TextStyle(
-                              color: AppTheme.primary,
+                            style: TextStyle(
+                              color: cs.primary,
                               fontWeight: FontWeight.bold,
                               fontSize: 16,
                             ),
                           ),
                           const SizedBox(width: 8),
-                          const Icon(Icons.chevron_right, color: AppTheme.textSecondary, size: 18),
+                          Icon(Icons.chevron_right,
+                              color: cs.onSurfaceVariant, size: 18),
                         ],
                       ),
                     ),
@@ -347,9 +550,21 @@ class _AddReminderScreenState extends State<AddReminderScreen> {
                 ),
               ],
             ),
+            const SizedBox(height: 12),
+            _DatePickerTile(
+              label: 'Refill Date',
+              value: _formatDate(_refillDate),
+              icon: Icons.local_pharmacy_outlined,
+              optional: true,
+              onTap: _pickRefillDate,
+              onClear: _refillDate == null
+                  ? null
+                  : () => setState(() => _refillDate = null),
+            ),
             const SizedBox(height: 20),
 
-            _SectionHeader(title: 'Instructions & Quantity', icon: Icons.info_outline),
+            const _SectionHeader(
+                title: 'Instructions & Quantity', icon: Icons.info_outline),
             const SizedBox(height: 12),
 
             TextFormField(
@@ -376,7 +591,9 @@ class _AddReminderScreenState extends State<AddReminderScreen> {
                       prefixIcon: Icon(Icons.inventory_2_outlined),
                     ),
                     validator: (v) {
-                      if (v != null && v.isNotEmpty && int.tryParse(v) == null) {
+                      if (v != null &&
+                          v.isNotEmpty &&
+                          int.tryParse(v) == null) {
                         return 'Must be a number';
                       }
                       return null;
@@ -394,7 +611,9 @@ class _AddReminderScreenState extends State<AddReminderScreen> {
                       prefixIcon: Icon(Icons.medication_outlined),
                     ),
                     validator: (v) {
-                      if (v != null && v.isNotEmpty && int.tryParse(v) == null) {
+                      if (v != null &&
+                          v.isNotEmpty &&
+                          int.tryParse(v) == null) {
                         return 'Must be a number';
                       }
                       return null;
@@ -405,16 +624,21 @@ class _AddReminderScreenState extends State<AddReminderScreen> {
             ),
             const SizedBox(height: 20),
 
-            _SectionHeader(title: 'For Family Member', icon: Icons.family_restroom),
+            const _SectionHeader(
+                title: 'For Family Member', icon: Icons.family_restroom),
             const SizedBox(height: 12),
 
             _loadingFamily
-                ? const Center(child: Padding(
-                    padding: EdgeInsets.all(12),
-                    child: CircularProgressIndicator(color: AppTheme.primary, strokeWidth: 2),
-                  ))
+                ? Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: CircularProgressIndicator(
+                          color: Theme.of(context).colorScheme.primary,
+                          strokeWidth: 2),
+                    ),
+                  )
                 : DropdownButtonFormField<int?>(
-                    value: _selectedFamilyMemberId,
+                    initialValue: _selectedFamilyMemberId,
                     decoration: const InputDecoration(
                       labelText: 'Family Member (optional)',
                       prefixIcon: Icon(Icons.person),
@@ -429,7 +653,8 @@ class _AddReminderScreenState extends State<AddReminderScreen> {
                             child: Text(m['name']?.toString() ?? 'Unknown'),
                           )),
                     ],
-                    onChanged: (v) => setState(() => _selectedFamilyMemberId = v),
+                    onChanged: (v) =>
+                        setState(() => _selectedFamilyMemberId = v),
                   ),
             const SizedBox(height: 32),
 
@@ -454,16 +679,17 @@ class _SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Row(
       children: [
-        Icon(icon, color: AppTheme.primary, size: 18),
+        Icon(icon, color: cs.primary, size: 18),
         const SizedBox(width: 8),
         Text(
           title,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 15,
             fontWeight: FontWeight.bold,
-            color: AppTheme.textPrimary,
+            color: cs.onSurface,
           ),
         ),
       ],
@@ -477,6 +703,7 @@ class _DatePickerTile extends StatelessWidget {
   final IconData icon;
   final VoidCallback onTap;
   final bool optional;
+  final VoidCallback? onClear;
 
   const _DatePickerTile({
     required this.label,
@@ -484,38 +711,55 @@ class _DatePickerTile extends StatelessWidget {
     required this.icon,
     required this.onTap,
     this.optional = false,
+    this.onClear,
   });
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: AppRadius.brMd,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
         decoration: BoxDecoration(
-          color: Colors.grey.shade50,
-          border: Border.all(color: Colors.grey.shade300),
-          borderRadius: BorderRadius.circular(12),
+          color: cs.surface,
+          border: Border.all(color: cs.outline),
+          borderRadius: AppRadius.brMd,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                Icon(icon, color: AppTheme.primary, size: 16),
+                Icon(icon, color: cs.primary, size: 16),
                 const SizedBox(width: 6),
-                Text(
-                  label + (optional ? ' (opt)' : ''),
-                  style: const TextStyle(color: AppTheme.textSecondary, fontSize: 11),
+                Expanded(
+                  child: Text(
+                    label + (optional ? ' (opt)' : ''),
+                    style: TextStyle(color: cs.onSurfaceVariant, fontSize: 11),
+                  ),
                 ),
+                if (onClear != null)
+                  InkWell(
+                    onTap: onClear,
+                    borderRadius: AppRadius.brSm,
+                    child: Padding(
+                      padding: const EdgeInsets.all(4),
+                      child: Icon(
+                        Icons.clear,
+                        size: 16,
+                        color: cs.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
               ],
             ),
             const SizedBox(height: 4),
             Text(
               value,
               style: TextStyle(
-                color: value == 'Not set' ? AppTheme.textSecondary : AppTheme.primary,
+                color: value == 'Not set' ? cs.onSurfaceVariant : cs.primary,
                 fontWeight: FontWeight.w600,
                 fontSize: 13,
               ),

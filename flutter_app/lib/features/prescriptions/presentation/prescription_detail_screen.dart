@@ -3,7 +3,8 @@ import 'package:dio/dio.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:vitapulse_ai/core/network/api_client.dart';
-import 'package:vitapulse_ai/core/theme/app_theme.dart';
+import 'package:vitapulse_ai/theme/design_tokens/app_radius.dart';
+import 'package:vitapulse_ai/theme/theme_extensions.dart';
 
 class PrescriptionDetailScreen extends StatefulWidget {
   final int prescriptionId;
@@ -75,6 +76,7 @@ class _PrescriptionDetailScreenState extends State<PrescriptionDetailScreen> {
   }
 
   Widget _buildLoadingShimmer() {
+    final cs = Theme.of(context).colorScheme;
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Column(
@@ -85,8 +87,8 @@ class _PrescriptionDetailScreenState extends State<PrescriptionDetailScreen> {
             margin: const EdgeInsets.only(bottom: 16),
             height: i == 2 ? 160 : 80,
             decoration: BoxDecoration(
-              color: Colors.grey.shade200,
-              borderRadius: BorderRadius.circular(12),
+              color: cs.surfaceContainerHighest,
+              borderRadius: AppRadius.brMd,
             ),
           ),
         ),
@@ -95,23 +97,22 @@ class _PrescriptionDetailScreenState extends State<PrescriptionDetailScreen> {
   }
 
   Widget _buildError() {
+    final cs = Theme.of(context).colorScheme;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.error_outline,
-                size: 56, color: AppTheme.textSecondary),
+            Icon(Icons.error_outline, size: 56, color: cs.onSurfaceVariant),
             const SizedBox(height: 16),
             Text(
               _error ?? 'Something went wrong.',
               textAlign: TextAlign.center,
-              style:
-                  const TextStyle(color: AppTheme.textSecondary, fontSize: 14),
+              style: TextStyle(color: cs.onSurfaceVariant, fontSize: 14),
             ),
             const SizedBox(height: 24),
-            ElevatedButton.icon(
+            FilledButton.icon(
               onPressed: _fetchDetail,
               icon: const Icon(Icons.refresh),
               label: const Text('Retry'),
@@ -123,6 +124,8 @@ class _PrescriptionDetailScreenState extends State<PrescriptionDetailScreen> {
   }
 
   Widget _buildHeader(_PrescriptionDetail detail) {
+    final cs = Theme.of(context).colorScheme;
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -134,11 +137,11 @@ class _PrescriptionDetailScreenState extends State<PrescriptionDetailScreen> {
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: const Color(0x1E1565C0),
-                    borderRadius: BorderRadius.circular(10),
+                    color: cs.primaryContainer.withValues(alpha: 0.25),
+                    borderRadius: AppRadius.brSm,
                   ),
-                  child: const Icon(Icons.description_outlined,
-                      color: AppTheme.secondary, size: 26),
+                  child: Icon(Icons.description_outlined,
+                      color: cs.secondary, size: 26),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -153,9 +156,11 @@ class _PrescriptionDetailScreenState extends State<PrescriptionDetailScreen> {
                             fontWeight: FontWeight.bold, fontSize: 16),
                       ),
                       if (detail.hospital.isNotEmpty)
-                        Text(detail.hospital,
-                            style: const TextStyle(
-                                color: AppTheme.textSecondary, fontSize: 13)),
+                        Text(
+                          detail.hospital,
+                          style: TextStyle(
+                              color: cs.onSurfaceVariant, fontSize: 13),
+                        ),
                     ],
                   ),
                 ),
@@ -166,13 +171,13 @@ class _PrescriptionDetailScreenState extends State<PrescriptionDetailScreen> {
             const SizedBox(height: 8),
             Row(
               children: [
-                const Icon(Icons.calendar_today_outlined,
-                    size: 15, color: AppTheme.textSecondary),
+                Icon(Icons.calendar_today_outlined,
+                    size: 15, color: cs.onSurfaceVariant),
                 const SizedBox(width: 6),
                 Text(
                   'Date: ${_formatDate(detail.date)}',
-                  style: const TextStyle(
-                      color: AppTheme.textSecondary, fontSize: 13),
+                  style:
+                      TextStyle(color: cs.onSurfaceVariant, fontSize: 13),
                 ),
               ],
             ),
@@ -183,13 +188,15 @@ class _PrescriptionDetailScreenState extends State<PrescriptionDetailScreen> {
   }
 
   Widget _buildMedicinesTable(_PrescriptionDetail detail) {
+    final cs = Theme.of(context).colorScheme;
+
     if (detail.medicines.isEmpty) {
-      return const Card(
+      return Card(
         child: Padding(
-          padding: EdgeInsets.all(16),
+          padding: const EdgeInsets.all(16),
           child: Text(
             'No medicines extracted.',
-            style: TextStyle(color: AppTheme.textSecondary),
+            style: TextStyle(color: cs.onSurfaceVariant),
           ),
         ),
       );
@@ -201,12 +208,11 @@ class _PrescriptionDetailScreenState extends State<PrescriptionDetailScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Row(
+            Row(
               children: [
-                Icon(Icons.medication_outlined,
-                    color: AppTheme.primary, size: 22),
-                SizedBox(width: 8),
-                Text('Medicines',
+                Icon(Icons.medication_outlined, color: cs.primary, size: 22),
+                const SizedBox(width: 8),
+                const Text('Medicines',
                     style: TextStyle(
                         fontSize: 16, fontWeight: FontWeight.bold)),
               ],
@@ -227,6 +233,9 @@ class _PrescriptionDetailScreenState extends State<PrescriptionDetailScreen> {
       return const SizedBox.shrink();
     }
 
+    final cs = Theme.of(context).colorScheme;
+    final hc = HealthcareColors.of(context);
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -238,30 +247,29 @@ class _PrescriptionDetailScreenState extends State<PrescriptionDetailScreen> {
                 Container(
                   padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
-                    color: const Color(0x1E1565C0),
-                    borderRadius: BorderRadius.circular(8),
+                    color: hc.aiAccent.withValues(alpha: 0.12),
+                    borderRadius: AppRadius.brSm,
                   ),
-                  child: const Icon(Icons.psychology_outlined,
-                      color: AppTheme.secondary, size: 20),
+                  child:
+                      Icon(Icons.psychology_outlined, color: hc.aiAccent, size: 20),
                 ),
                 const SizedBox(width: 10),
                 const Text(
                   'AI Summary',
-                  style: TextStyle(
-                      fontSize: 15, fontWeight: FontWeight.bold),
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
                 ),
                 const Spacer(),
                 Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
-                    color: const Color(0x1A1565C0),
-                    borderRadius: BorderRadius.circular(10),
+                    color: hc.aiAccent.withValues(alpha: 0.12),
+                    borderRadius: AppRadius.brSm,
                   ),
-                  child: const Text(
+                  child: Text(
                     'Claude AI',
                     style: TextStyle(
-                        color: AppTheme.secondary,
+                        color: hc.aiAccent,
                         fontSize: 11,
                         fontWeight: FontWeight.w600),
                   ),
@@ -271,13 +279,101 @@ class _PrescriptionDetailScreenState extends State<PrescriptionDetailScreen> {
             const SizedBox(height: 12),
             Text(
               detail.aiSummary!,
-              style: const TextStyle(
-                  fontSize: 14,
-                  color: AppTheme.textPrimary,
-                  height: 1.55),
+              style: TextStyle(
+                  fontSize: 14, color: cs.onSurface, height: 1.55),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildAllergyAlerts(_PrescriptionDetail detail) {
+    final alerts = detail.allergyAlerts;
+    if (alerts == null || alerts['safe'] == true) return const SizedBox.shrink();
+    final alertList = (alerts['alerts'] as List? ?? []);
+    if (alertList.isEmpty) return const SizedBox.shrink();
+
+    final cs = Theme.of(context).colorScheme;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: cs.errorContainer,
+        borderRadius: AppRadius.brLg,
+        border: Border.all(color: cs.error, width: 1.5),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.health_and_safety, color: cs.error, size: 22),
+              const SizedBox(width: 8),
+              Text(
+                '⚠️ Allergy Alert!',
+                style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                    color: cs.error),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ...alertList.map((a) => Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Text(
+                  '• ${a['medicine']}: ${a['reason']} — ${a['recommendation']}',
+                  style: const TextStyle(fontSize: 13),
+                ),
+              )),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDuplicateWarnings(_PrescriptionDetail detail) {
+    final dups = detail.duplicateWarnings;
+    if (dups == null || dups['safe'] == true) return const SizedBox.shrink();
+    final dupList = (dups['duplicates'] as List? ?? []);
+    if (dupList.isEmpty) return const SizedBox.shrink();
+
+    final hc = HealthcareColors.of(context);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: hc.vitaWarning.withValues(alpha: 0.12),
+        borderRadius: AppRadius.brLg,
+        border: Border.all(color: hc.vitaWarning, width: 1.5),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.content_copy, color: hc.vitaWarning, size: 22),
+              const SizedBox(width: 8),
+              Text(
+                'Duplicate Medicines Detected',
+                style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                    color: hc.vitaWarning),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ...dupList.map((d) => Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Text(
+                  '• ${d['medicine_a']} & ${d['medicine_b']}: ${d['risk']}',
+                  style: const TextStyle(fontSize: 13),
+                ),
+              )),
+        ],
       ),
     );
   }
@@ -292,6 +388,8 @@ class _PrescriptionDetailScreenState extends State<PrescriptionDetailScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            _buildAllergyAlerts(detail),
+            _buildDuplicateWarnings(detail),
             _buildHeader(detail),
             const SizedBox(height: 12),
             _buildMedicinesTable(detail),
@@ -307,16 +405,10 @@ class _PrescriptionDetailScreenState extends State<PrescriptionDetailScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.background,
       appBar: AppBar(
-        backgroundColor: AppTheme.primary,
-        title: const Text('Prescription',
-            style: TextStyle(color: Colors.white)),
+        title: const Text('Prescription'),
         centerTitle: true,
-        leading: BackButton(
-          color: Colors.white,
-          onPressed: () => Navigator.of(context).maybePop(),
-        ),
+        leading: BackButton(onPressed: () => context.pop()),
       ),
       body: _loading
           ? _buildLoadingShimmer()
@@ -327,7 +419,7 @@ class _PrescriptionDetailScreenState extends State<PrescriptionDetailScreen> {
   }
 }
 
-// ─────────────────────────── Data models ───────────────────────────
+// ── Data models ───────────────────────────────────────────────────────────────
 
 class _PrescriptionMedicine {
   final String name;
@@ -359,6 +451,8 @@ class _PrescriptionDetail {
   final String? date;
   final String? aiSummary;
   final List<_PrescriptionMedicine> medicines;
+  final Map<String, dynamic>? allergyAlerts;
+  final Map<String, dynamic>? duplicateWarnings;
 
   const _PrescriptionDetail({
     required this.id,
@@ -367,6 +461,8 @@ class _PrescriptionDetail {
     this.date,
     this.aiSummary,
     required this.medicines,
+    this.allergyAlerts,
+    this.duplicateWarnings,
   });
 
   factory _PrescriptionDetail.fromJson(Map<String, dynamic> json) {
@@ -392,11 +488,13 @@ class _PrescriptionDetail {
           json['summary']?.toString() ??
           json['aiSummary']?.toString(),
       medicines: medicines,
+      allergyAlerts: json['allergy_alerts'] as Map<String, dynamic>?,
+      duplicateWarnings: json['duplicate_warnings'] as Map<String, dynamic>?,
     );
   }
 }
 
-// ─────────────────────────── Medicine tile widget ───────────────────────────
+// ── Medicine tile ─────────────────────────────────────────────────────────────
 
 class _MedicineTile extends StatelessWidget {
   final _PrescriptionMedicine medicine;
@@ -407,22 +505,23 @@ class _MedicineTile extends StatelessWidget {
     required this.onAddReminder,
   });
 
-  Widget _infoChip(IconData icon, String label) {
+  Widget _infoChip(BuildContext context, IconData icon, String label) {
+    final cs = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: AppTheme.background,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.shade300),
+        color: cs.surfaceContainerHighest,
+        borderRadius: AppRadius.brSm,
+        border: Border.all(color: cs.outline),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 13, color: AppTheme.textSecondary),
+          Icon(icon, size: 13, color: cs.onSurfaceVariant),
           const SizedBox(width: 4),
           Text(label,
-              style: const TextStyle(
-                  color: AppTheme.textSecondary, fontSize: 12)),
+              style:
+                  TextStyle(color: cs.onSurfaceVariant, fontSize: 12)),
         ],
       ),
     );
@@ -430,13 +529,15 @@ class _MedicineTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppTheme.background,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.grey.shade200),
+        color: cs.surface,
+        borderRadius: AppRadius.brSm,
+        border: Border.all(color: cs.outline.withValues(alpha: 0.5)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -447,19 +548,17 @@ class _MedicineTile extends StatelessWidget {
               Expanded(
                 child: Text(
                   medicine.name,
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 14,
-                      color: AppTheme.textPrimary),
+                      color: cs.onSurface),
                 ),
               ),
               TextButton.icon(
                 onPressed: onAddReminder,
                 icon: const Icon(Icons.alarm_add_outlined, size: 16),
-                label: const Text('Remind',
-                    style: TextStyle(fontSize: 12)),
+                label: const Text('Remind', style: TextStyle(fontSize: 12)),
                 style: TextButton.styleFrom(
-                  foregroundColor: AppTheme.primary,
                   minimumSize: Size.zero,
                   padding: const EdgeInsets.symmetric(
                       horizontal: 8, vertical: 4),
@@ -474,11 +573,11 @@ class _MedicineTile extends StatelessWidget {
             runSpacing: 6,
             children: [
               if (medicine.dosage.isNotEmpty)
-                _infoChip(Icons.medication_outlined, medicine.dosage),
+                _infoChip(context, Icons.medication_outlined, medicine.dosage),
               if (medicine.frequency.isNotEmpty)
-                _infoChip(Icons.repeat_outlined, medicine.frequency),
+                _infoChip(context, Icons.repeat_outlined, medicine.frequency),
               if (medicine.duration.isNotEmpty)
-                _infoChip(Icons.calendar_today_outlined, medicine.duration),
+                _infoChip(context, Icons.calendar_today_outlined, medicine.duration),
             ],
           ),
         ],

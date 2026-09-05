@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:vitapulse_ai/core/network/api_client.dart';
-import 'package:vitapulse_ai/core/theme/app_theme.dart';
 import 'package:vitapulse_ai/shared/widgets/loading_button.dart';
+import 'package:vitapulse_ai/theme/design_tokens/app_radius.dart';
+import 'package:vitapulse_ai/theme/theme_extensions.dart';
 
 class AddFamilyMemberScreen extends StatefulWidget {
   const AddFamilyMemberScreen({super.key});
@@ -83,10 +84,11 @@ class _AddFamilyMemberScreenState extends State<AddFamilyMemberScreen> {
       await ApiClient.post('/family/', data: body);
 
       if (mounted) {
+        final hc = HealthcareColors.of(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Family member added successfully'),
-            backgroundColor: AppTheme.success,
+          SnackBar(
+            content: const Text('Family member added successfully'),
+            backgroundColor: hc.vitaGood,
           ),
         );
         context.pop(true);
@@ -94,9 +96,9 @@ class _AddFamilyMemberScreenState extends State<AddFamilyMemberScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to add family member'),
-            backgroundColor: AppTheme.error,
+          SnackBar(
+            content: const Text('Failed to add family member'),
+            backgroundColor: Theme.of(context).colorScheme.error,
           ),
         );
       }
@@ -107,6 +109,7 @@ class _AddFamilyMemberScreenState extends State<AddFamilyMemberScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(title: const Text('Add Family Member')),
       body: SingleChildScrollView(
@@ -137,19 +140,33 @@ class _AddFamilyMemberScreenState extends State<AddFamilyMemberScreen> {
               // Relationship
               _label('Relationship *'),
               const SizedBox(height: 6),
-              DropdownButtonFormField<String>(
-                value: _relationship,
-                decoration: const InputDecoration(
-                  hintText: 'Select relationship',
-                  prefixIcon: Icon(Icons.family_restroom),
-                ),
-                items: _relationships
-                    .map((r) =>
-                        DropdownMenuItem(value: r, child: Text(r)))
-                    .toList(),
-                onChanged: (v) => setState(() => _relationship = v),
+              FormField<String>(
+                initialValue: _relationship,
                 validator: (v) =>
                     v == null ? 'Please select a relationship' : null,
+                builder: (field) => InputDecorator(
+                  decoration: InputDecoration(
+                    hintText: 'Select relationship',
+                    prefixIcon: const Icon(Icons.family_restroom),
+                    errorText: field.errorText,
+                  ),
+                  isEmpty: _relationship == null,
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: _relationship,
+                      isDense: true,
+                      isExpanded: true,
+                      hint: const Text('Select relationship'),
+                      items: _relationships
+                          .map((r) => DropdownMenuItem(value: r, child: Text(r)))
+                          .toList(),
+                      onChanged: (v) {
+                        setState(() => _relationship = v);
+                        field.didChange(v);
+                      },
+                    ),
+                  ),
+                ),
               ),
               const SizedBox(height: 16),
 
@@ -177,34 +194,47 @@ class _AddFamilyMemberScreenState extends State<AddFamilyMemberScreen> {
               // Gender
               _label('Gender'),
               const SizedBox(height: 6),
-              DropdownButtonFormField<String>(
-                value: _gender,
-                decoration: const InputDecoration(
-                  hintText: 'Select gender',
-                  prefixIcon: Icon(Icons.wc_outlined),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                decoration: BoxDecoration(
+                  border: Border.all(
+                      color: Theme.of(context).colorScheme.outline),
+                  borderRadius: AppRadius.brMd,
                 ),
-                items: _genders
-                    .map((g) =>
-                        DropdownMenuItem(value: g, child: Text(g)))
-                    .toList(),
-                onChanged: (v) => setState(() => _gender = v),
+                child: DropdownButton<String>(
+                  value: _gender,
+                  isExpanded: true,
+                  underline: const SizedBox(),
+                  hint: const Text('Select gender'),
+                  items: _genders
+                      .map((g) => DropdownMenuItem(value: g, child: Text(g)))
+                      .toList(),
+                  onChanged: (v) => setState(() => _gender = v),
+                ),
               ),
               const SizedBox(height: 16),
 
               // Blood Group
               _label('Blood Group'),
               const SizedBox(height: 6),
-              DropdownButtonFormField<String>(
-                value: _bloodGroup,
-                decoration: const InputDecoration(
-                  hintText: 'Select blood group',
-                  prefixIcon: Icon(Icons.bloodtype_outlined),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                decoration: BoxDecoration(
+                  border: Border.all(
+                      color: Theme.of(context).colorScheme.outline),
+                  borderRadius: AppRadius.brMd,
                 ),
-                items: _bloodGroups
-                    .map((bg) =>
-                        DropdownMenuItem(value: bg, child: Text(bg)))
-                    .toList(),
-                onChanged: (v) => setState(() => _bloodGroup = v),
+                child: DropdownButton<String>(
+                  value: _bloodGroup,
+                  isExpanded: true,
+                  underline: const SizedBox(),
+                  hint: const Text('Select blood group'),
+                  items: _bloodGroups
+                      .map((bg) =>
+                          DropdownMenuItem(value: bg, child: Text(bg)))
+                      .toList(),
+                  onChanged: (v) => setState(() => _bloodGroup = v),
+                ),
               ),
               const SizedBox(height: 24),
 
@@ -214,10 +244,10 @@ class _AddFamilyMemberScreenState extends State<AddFamilyMemberScreen> {
               // Medical Conditions
               _label('Medical Conditions'),
               const SizedBox(height: 4),
-              const Text(
+              Text(
                 'Enter comma-separated values',
                 style: TextStyle(
-                    color: AppTheme.textSecondary, fontSize: 12),
+                    color: cs.onSurfaceVariant, fontSize: 12),
               ),
               const SizedBox(height: 6),
               TextFormField(
@@ -238,10 +268,10 @@ class _AddFamilyMemberScreenState extends State<AddFamilyMemberScreen> {
               // Allergies
               _label('Allergies'),
               const SizedBox(height: 4),
-              const Text(
+              Text(
                 'Enter comma-separated values',
                 style: TextStyle(
-                    color: AppTheme.textSecondary, fontSize: 12),
+                    color: cs.onSurfaceVariant, fontSize: 12),
               ),
               const SizedBox(height: 6),
               TextFormField(
@@ -272,23 +302,25 @@ class _AddFamilyMemberScreenState extends State<AddFamilyMemberScreen> {
   }
 
   Widget _sectionHeader(String text) {
+    final cs = Theme.of(context).colorScheme;
     return Text(
       text,
-      style: const TextStyle(
+      style: TextStyle(
         fontSize: 16,
         fontWeight: FontWeight.bold,
-        color: AppTheme.textPrimary,
+        color: cs.onSurface,
       ),
     );
   }
 
   Widget _label(String text) {
+    final cs = Theme.of(context).colorScheme;
     return Text(
       text,
-      style: const TextStyle(
+      style: TextStyle(
           fontWeight: FontWeight.w500,
           fontSize: 13,
-          color: AppTheme.textPrimary),
+          color: cs.onSurface),
     );
   }
 }

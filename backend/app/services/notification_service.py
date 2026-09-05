@@ -1,5 +1,5 @@
-"""
-Push notification service for VitaPulse AI.
+﻿"""
+Push notification service for HealthNest.
 
 Supports:
   - FCM (Firebase Cloud Messaging) via firebase-admin SDK
@@ -28,25 +28,25 @@ def validate_external_services():
 
     if not settings.SMTP_EMAIL or not settings.SMTP_PASSWORD:
         logger.warning(
-            "SMTP credentials (SMTP_EMAIL / SMTP_PASSWORD) not configured — "
+            "SMTP credentials (SMTP_EMAIL / SMTP_PASSWORD) not configured â€” "
             "email OTP will not be sent."
         )
     if not settings.TWILIO_ACCOUNT_SID or not settings.TWILIO_AUTH_TOKEN:
         logger.warning(
-            "Twilio credentials (TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN) not configured — "
+            "Twilio credentials (TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN) not configured â€” "
             "SMS OTP will not be sent."
         )
     if not os.getenv("FIREBASE_CREDENTIALS_PATH") and not settings.FIREBASE_CREDENTIALS_PATH:
         logger.warning(
-            "FIREBASE_CREDENTIALS_PATH not set — push notifications disabled."
+            "FIREBASE_CREDENTIALS_PATH not set â€” push notifications disabled."
         )
     if not settings.ENCRYPTION_KEY:
         logger.warning(
-            "ENCRYPTION_KEY not set — using derived key. "
+            "ENCRYPTION_KEY not set â€” using derived key. "
             "Set ENCRYPTION_KEY in .env for production security."
         )
 
-# ─── Lazy FCM initialisation ─────────────────────────────────────────────────
+# â”€â”€â”€ Lazy FCM initialisation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 _fcm_app = None
 _fcm_available = False
@@ -60,12 +60,13 @@ def _init_fcm() -> bool:
     try:
         import firebase_admin
         from firebase_admin import credentials
-        import os
+        from app.core.config import settings
 
-        cred_path = os.getenv("FIREBASE_CREDENTIALS_PATH")
+        cred_path = os.getenv("FIREBASE_CREDENTIALS_PATH") or settings.FIREBASE_CREDENTIALS_PATH
         if not cred_path:
             logger.info(
-                "FIREBASE_CREDENTIALS_PATH not set — push notifications disabled."
+                "FIREBASE_CREDENTIALS_PATH not set — FCM push notifications disabled "
+                "(local on-device reminders are the Sprint 1 delivery path)."
             )
             _fcm_available = False
             return False
@@ -81,7 +82,7 @@ def _init_fcm() -> bool:
         return False
 
 
-# ─── Core send helper ────────────────────────────────────────────────────────
+# â”€â”€â”€ Core send helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 async def _send_fcm(
     token: str,
@@ -92,12 +93,13 @@ async def _send_fcm(
     """Send a single FCM notification. Returns True on success."""
     if not _init_fcm():
         logger.info(
-            "[PUSH NOTIFICATION - dev mode]\n  token: %s...\n  title: %s\n  body: %s",
-            token[:20],
+            "[FCM UNAVAILABLE — not sent]\n  token: %s...\n  title: %s\n  body: %s\n"
+            "  Local on-device notifications remain the client delivery path.",
+            token[:20] if token else "",
             title,
             body,
         )
-        return True  # treat as success in dev mode
+        return False  # Do not claim FCM success when credentials are missing
 
     try:
         from firebase_admin import messaging
@@ -123,7 +125,7 @@ async def _send_fcm(
         return False
 
 
-# ─── Public API ──────────────────────────────────────────────────────────────
+# â”€â”€â”€ Public API â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class NotificationService:
 
@@ -151,7 +153,7 @@ class NotificationService:
         family_member = schedule.get("family_member_name")
 
         if family_member:
-            title = f"Medication Reminder — {family_member}"
+            title = f"Medication Reminder â€” {family_member}"
             body = f"Time for {medicine}" + (f" {dosage}" if dosage else "")
         else:
             title = "Medication Reminder"
@@ -225,7 +227,7 @@ class NotificationService:
 
         return await _send_fcm(
             fcm_token,
-            title="🚨 Emergency SOS Alert",
+            title="ðŸš¨ Emergency SOS Alert",
             body=body,
             data={
                 "type": "sos",

@@ -14,33 +14,73 @@ logger = logging.getLogger(__name__)
 
 _scheduler = None
 
+# Consecutive-failure tracking — alert developers after 3 failures in a row
+_reminder_fail_streak: int = 0
+_ALERT_AFTER_STREAK:   int = 3
+
 
 async def _dispatch_reminders() -> None:
     """Query due reminders and send push notifications."""
+    global _reminder_fail_streak
+
     from app.core.database import AsyncSessionLocal
     from app.services.notification_service import NotificationService
     from sqlalchemy import text
 
     try:
         async with AsyncSessionLocal() as db:
-            # Use the fn_get_due_reminders() PostgreSQL function (5-min window)
             result = await db.execute(
                 text("SELECT * FROM fn_get_due_reminders(:window)"),
                 {"window": 5},
             )
             rows = result.mappings().all()
 
-        logger.info("[ReminderWorker] Checking reminders at %s — %d due",
-                    datetime.now(timezone.utc).strftime("%H:%M"), len(rows))
+        if rows:
+            logger.info(
+                "[ReminderWorker] %s — %d reminder(s) due",
+                datetime.now(timezone.utc).strftime("%H:%M UTC"),
+                len(rows),
+            )
 
         for row in rows:
             schedule = dict(row)
-            success = await NotificationService.send_medication_reminder(schedule)
-            if success:
-                logger.debug("  ✓ Sent reminder for %s to user %s",
-                             schedule.get("medicine_name"), schedule.get("user_id"))
+            try:
+                success = await NotificationService.send_medication_reminder(schedule)
+                if success:
+                    logger.debug(
+                        "[ReminderWorker] Sent reminder: schedule_id=%s user=%s",
+                        schedule.get("id") or schedule.get("schedule_id"),
+                        schedule.get("user_id"),
+                    )
+            except Exception as row_exc:
+                logger.warning(
+                    "[ReminderWorker] Failed single reminder user=%s: %s",
+                    schedule.get("user_id"),
+                    row_exc,
+                )
+
+        _reminder_fail_streak = 0   # reset on any successful run
+
     except Exception as exc:
-        logger.error("[ReminderWorker] Error: %s", exc)
+        _reminder_fail_streak += 1
+        logger.error(
+            "[ReminderWorker] Dispatch error (streak=%d): %s",
+            _reminder_fail_streak, exc,
+        )
+        # Alert developers after N consecutive failures
+        if _reminder_fail_streak >= _ALERT_AFTER_STREAK:
+            try:
+                from app.services.alert_service import send_alert_email
+                await send_alert_email(
+                    subject=f"Reminder Worker Failing (streak={_reminder_fail_streak})",
+                    source="backend",
+                    error_type=type(exc).__name__,
+                    message=str(exc),
+                    extra={"streak": str(_reminder_fail_streak), "worker": "ReminderWorker"},
+                )
+                _reminder_fail_streak = 0   # reset after alerting to avoid spam
+            except Exception as alert_exc:
+                logger.warning("[ReminderWorker] Alert email failed: %s", alert_exc)
 
 
 async def _dispatch_refill_alerts() -> None:
@@ -61,6 +101,17 @@ async def _dispatch_refill_alerts() -> None:
                 await NotificationService.send_refill_alert(schedule)
     except Exception as exc:
         logger.error("[RefillWorker] Error: %s", exc)
+        try:
+            from app.services.alert_service import send_alert_email
+            await send_alert_email(
+                subject="Refill Alert Worker Failed",
+                source="backend",
+                error_type=type(exc).__name__,
+                message=str(exc),
+                extra={"worker": "RefillWorker"},
+            )
+        except Exception:
+            pass
 
 
 def start_scheduler() -> None:

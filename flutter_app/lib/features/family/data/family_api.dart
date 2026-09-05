@@ -1,4 +1,3 @@
-import 'package:dio/dio.dart';
 import 'package:vitapulse_ai/core/network/api_client.dart';
 
 class FamilyApi {
@@ -25,15 +24,5 @@ class FamilyApi {
 
   static Future<void> deleteMember(int id) async {
     await ApiClient.delete('/family/$id');
-  }
-
-  static Future<Map<String, dynamic>> uploadPhoto(
-      int memberId, String filePath) async {
-    final formData = FormData.fromMap({
-      'file': await MultipartFile.fromFile(filePath),
-    });
-    final resp = await ApiClient.uploadFile(
-        '/family/$memberId/photo', formData);
-    return resp.data as Map<String, dynamic>;
   }
 }

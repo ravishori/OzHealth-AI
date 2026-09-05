@@ -1,5 +1,5 @@
-"""
-Custom exception hierarchy for VitaPulse AI.
+﻿"""
+Custom exception hierarchy for HealthNest.
 All application exceptions inherit from AppException so the global handler
 in main.py can format them uniformly.
 """

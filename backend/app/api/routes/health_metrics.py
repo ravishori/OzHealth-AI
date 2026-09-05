@@ -15,11 +15,54 @@ from app.core.logging_config import audit_log
 
 router = APIRouter(route_class=LoggedAPIRoute)
 
+
+def _compute_status(metric_type: str, value: float, value2: float | None) -> str:
+    if metric_type in ("blood_pressure", "blood_pressure_systolic"):
+        if value < 90:
+            return "low"
+        if value < 120:
+            return "normal"
+        if value < 130:
+            return "elevated"
+        return "high"
+    if metric_type == "blood_sugar":
+        if value < 70:
+            return "low"
+        if value <= 100:
+            return "normal"
+        if value <= 125:
+            return "elevated"
+        return "high"
+    if metric_type == "heart_rate":
+        if value < 60:
+            return "low"
+        if value <= 100:
+            return "normal"
+        return "high"
+    if metric_type in ("oxygen_saturation", "oxygen_level"):
+        if value >= 95:
+            return "normal"
+        if value >= 90:
+            return "low"
+        return "critical"
+    if metric_type == "temperature":
+        if value < 36.0:
+            return "low"
+        if value <= 37.5:
+            return "normal"
+        if value <= 38.5:
+            return "elevated"
+        return "high"
+    return "unknown"
+
+
 METRIC_UNITS = {
+    "blood_pressure": "mmHg",
     "blood_pressure_systolic": "mmHg",
     "blood_pressure_diastolic": "mmHg",
     "blood_sugar": "mg/dL",
     "heart_rate": "bpm",
+    "oxygen_saturation": "%",
     "oxygen_level": "%",
     "weight": "kg",
     "height": "cm",
@@ -119,13 +162,21 @@ async def get_summary(
                 "latest_value": latest.value,
                 "latest_value2": latest.value2,
                 "unit": latest.unit,
-                "recorded_at": latest.recorded_at,
+                "recorded_at": latest.recorded_at.isoformat() if latest.recorded_at else None,
                 "trend": trend,
+                "status": _compute_status(metric_type, latest.value, latest.value2),
                 "history": [
-                    {"value": r.value, "value2": r.value2, "recorded_at": r.recorded_at}
+                    {"value": r.value, "value2": r.value2, "recorded_at": r.recorded_at.isoformat() if r.recorded_at else None}
                     for r in records
                 ],
             }
+
+    if summary:
+        latest_ts = max(
+            (v["recorded_at"] for v in summary.values() if v.get("recorded_at")),
+            default=None,
+        )
+        summary["last_updated"] = latest_ts
 
     await CacheService.set(cache_key, summary, ttl=HEALTH_SUMMARY_TTL)
     return summary

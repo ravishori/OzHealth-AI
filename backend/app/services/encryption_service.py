@@ -25,6 +25,10 @@ from sqlalchemy import TypeDecorator, Text
 
 logger = logging.getLogger(__name__)
 
+# Versioned magic for medical-record file blobs on disk (HN-RECORD-009).
+# Distinguishes ciphertext from legacy plaintext objects without relying on extension.
+RECORD_FILE_MAGIC = b"HNREC1"
+
 # ─── Key management ──────────────────────────────────────────────────────────
 
 _fernet: Fernet | None = None
@@ -61,6 +65,12 @@ def _get_fernet() -> Fernet:
     return _fernet
 
 
+def reset_fernet_for_tests() -> None:
+    """Clear cached Fernet instance (tests only)."""
+    global _fernet
+    _fernet = None
+
+
 # ─── Core functions ──────────────────────────────────────────────────────────
 
 def encrypt(value: str) -> str:
@@ -70,7 +80,7 @@ def encrypt(value: str) -> str:
     try:
         return _get_fernet().encrypt(value.encode("utf-8")).decode("utf-8")
     except Exception as exc:
-        logger.error("Encryption failed: %s", exc)
+        logger.error("Encryption failed: %s", type(exc).__name__)
         raise
 
 
@@ -86,6 +96,46 @@ def decrypt(value: str) -> str:
     except (InvalidToken, Exception):
         # Graceful fallback: data was stored before encryption was enabled
         return value
+
+
+def encrypt_bytes(data: bytes) -> bytes:
+    """
+    Authenticated encryption for medical-record file bytes (HN-RECORD-009).
+    Returns: RECORD_FILE_MAGIC + Fernet token.
+    Never logs plaintext or ciphertext.
+    """
+    if not isinstance(data, (bytes, bytearray)):
+        raise TypeError("encrypt_bytes requires bytes")
+    try:
+        token = _get_fernet().encrypt(bytes(data))
+        return RECORD_FILE_MAGIC + token
+    except Exception as exc:
+        logger.error("File encryption failed: %s", type(exc).__name__)
+        raise
+
+
+def is_encrypted_record_blob(data: bytes) -> bool:
+    return isinstance(data, (bytes, bytearray)) and bytes(data).startswith(RECORD_FILE_MAGIC)
+
+
+def decrypt_bytes(data: bytes) -> bytes:
+    """
+    Decrypt a medical-record blob produced by encrypt_bytes.
+    Raises InvalidToken on corrupt/wrong-key ciphertext.
+    Does not silently return ciphertext as plaintext.
+    """
+    raw = bytes(data)
+    if not raw.startswith(RECORD_FILE_MAGIC):
+        raise InvalidToken("Not an encrypted medical-record blob")
+    token = raw[len(RECORD_FILE_MAGIC) :]
+    try:
+        return _get_fernet().decrypt(token)
+    except InvalidToken:
+        logger.error("File decryption failed: InvalidToken")
+        raise
+    except Exception as exc:
+        logger.error("File decryption failed: %s", type(exc).__name__)
+        raise
 
 
 # ─── SQLAlchemy TypeDecorator ─────────────────────────────────────────────────
