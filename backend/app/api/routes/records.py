@@ -9,6 +9,7 @@ from datetime import datetime
 from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.models.user import User
+from app.models.family_member import FamilyMember
 from app.models.medical_record import MedicalRecord
 from app.utils.storage import (
     save_encrypted_medical_file,
@@ -32,6 +33,25 @@ _RECORD_TYPE_ALIASES = {
 def normalize_record_type(raw: str) -> str:
     key = (raw or "").strip().lower()
     return _RECORD_TYPE_ALIASES.get(key, key)
+
+
+async def _require_owned_active_family_member(
+    db: AsyncSession,
+    family_member_id: int,
+    user_id: int,
+) -> FamilyMember:
+    """404 for missing, inactive, or cross-user members (no existence leak)."""
+    result = await db.execute(
+        select(FamilyMember).where(
+            FamilyMember.id == family_member_id,
+            FamilyMember.user_id == user_id,
+            FamilyMember.is_active == True,  # noqa: E712
+        )
+    )
+    member = result.scalar_one_or_none()
+    if not member:
+        raise HTTPException(status_code=404, detail="Family member not found")
+    return member
 
 
 @router.get("/")
@@ -78,6 +98,13 @@ async def upload_record(
     if canonical_type not in VALID_TYPES:
         raise HTTPException(status_code=400, detail=f"Invalid record type. Use: {VALID_TYPES}")
 
+    owned_family_member_id: Optional[int] = None
+    if family_member_id is not None:
+        member = await _require_owned_active_family_member(
+            db, family_member_id, current_user.id
+        )
+        owned_family_member_id = member.id
+
     try:
         file_url = await save_encrypted_medical_file(
             file, folder=f"records/{current_user.id}"
@@ -100,7 +127,7 @@ async def upload_record(
 
     record = MedicalRecord(
         user_id=current_user.id,
-        family_member_id=family_member_id,
+        family_member_id=owned_family_member_id,
         record_type=canonical_type,
         title=title or file.filename,
         file_url=file_url,
@@ -119,6 +146,7 @@ async def upload_record(
             "user_id": current_user.id,
             "record_type": canonical_type,
             "record_id": record.id,
+            "family_member_id": owned_family_member_id,
         },
     )
     return _to_dict(record)

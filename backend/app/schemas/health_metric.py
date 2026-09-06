@@ -96,6 +96,54 @@ class HealthMetricCreate(BaseModel):
         return self
 
 
+class HealthMetricUpdate(BaseModel):
+    """Editable fields for an existing reading. Type and family subject are frozen."""
+
+    value: float
+    value2: Optional[float] = None
+    unit: Optional[str] = None
+    notes: Optional[str] = None
+    recorded_at: Optional[datetime] = None
+
+    @field_validator("value")
+    @classmethod
+    def _value_finite(cls, v: float) -> float:
+        if v is None or not math.isfinite(v):
+            raise ValueError("value must be a finite number")
+        return v
+
+    @field_validator("value2")
+    @classmethod
+    def _value2_finite(cls, v: Optional[float]) -> Optional[float]:
+        if v is None:
+            return v
+        if not math.isfinite(v):
+            raise ValueError("value2 must be a finite number")
+        return v
+
+    @field_validator("notes")
+    @classmethod
+    def _notes_trim(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        text = v.strip()
+        if len(text) > 2000:
+            raise ValueError("notes too long")
+        return text or None
+
+    @field_validator("recorded_at")
+    @classmethod
+    def _recorded_at_tz(cls, v: Optional[datetime]) -> Optional[datetime]:
+        if v is None:
+            return v
+        if v.tzinfo is None:
+            v = v.replace(tzinfo=timezone.utc)
+        now = datetime.now(timezone.utc)
+        if v > now + timedelta(minutes=5):
+            raise ValueError("recorded_at cannot be in the future")
+        return v
+
+
 class HealthMetricResponse(BaseModel):
     id: int
     user_id: int

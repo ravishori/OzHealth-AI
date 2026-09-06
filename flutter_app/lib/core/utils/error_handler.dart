@@ -111,9 +111,44 @@ class ErrorHandler {
   static String? _extractBackendMessage(dynamic data) {
     if (data is Map) {
       final msg = data['message'] ?? data['detail'];
-      if (msg is String && msg.isNotEmpty) return msg;
+      if (msg is String && msg.isNotEmpty) {
+        return _sanitizeUserMessage(msg);
+      }
     }
     return null;
+  }
+
+  /// Drop provider/stack/URL/SQL-looking payloads that must never reach the UI.
+  static String? _sanitizeUserMessage(String raw) {
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) return null;
+    final lower = trimmed.toLowerCase();
+    const blocked = <String>[
+      'traceback',
+      'exception',
+      'stacktrace',
+      'stack trace',
+      'sqlalchemy',
+      'postgres',
+      'psycopg',
+      'select ',
+      'insert ',
+      'update ',
+      'delete from',
+      'http://',
+      'https://',
+      'bearer ',
+      'authorization',
+      '/api/',
+      'file://',
+      'socket',
+    ];
+    for (final token in blocked) {
+      if (lower.contains(token)) return null;
+    }
+    // Keep short, human-facing messages only.
+    if (trimmed.length > 180) return null;
+    return trimmed;
   }
 
   static String _extract422Message(dynamic data) {

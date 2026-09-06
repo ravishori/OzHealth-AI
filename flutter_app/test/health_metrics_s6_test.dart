@@ -125,14 +125,18 @@ void main() {
     expect(homeSrc.contains('familyMemberId: _familyMemberId'), isTrue);
     expect(homeSrc.contains("'Myself'"), isTrue);
     expect(logSrc.contains('Logged For'), isTrue);
-    expect(logSrc.contains("'family_member_id': _selectedFamilyMemberId"), isTrue);
+    expect(
+      logSrc.contains("'family_member_id': _selectedFamilyMemberId") ||
+          logSrc.contains("data['family_member_id'] = _selectedFamilyMemberId"),
+      isTrue,
+    );
     expect(apiSrc.contains('family_member_id'), isTrue);
   });
 
   test('HEALTH-FAMILY-FUNC-03 log inherits Health Monitor subject only if owned', () {
     expect(homeSrc.contains('_logRouteExtra()'), isTrue);
     expect(homeSrc.contains("'familyMemberId': _familyMemberId"), isTrue);
-    expect(routerSrc.contains('LogMetricScreen(initialFamilyMemberId:'), isTrue);
+    expect(routerSrc.contains('initialFamilyMemberId:'), isTrue);
     expect(logSrc.contains('initialFamilyMemberId'), isTrue);
     expect(logSrc.contains('ownedFamilyMemberSelection'), isTrue);
   });
@@ -227,5 +231,24 @@ void main() {
         isTrue);
     expect(LegalCopy.healthMetricsBanner.toLowerCase().contains('hypertension'),
         isFalse);
+  });
+
+  test('HEALTH-CRUD-EDIT Flutter reuses log screen with frozen type/subject', () {
+    expect(logSrc.contains('existingMetric'), isTrue);
+    expect(logSrc.contains('Edit Health Metric'), isTrue);
+    expect(logSrc.contains('Save changes'), isTrue);
+    expect(logSrc.contains('_isEditing'), isTrue);
+    expect(logSrc.contains('HealthApi.updateMetric'), isTrue);
+    expect(routerSrc.contains("extra['metric']"), isTrue);
+    expect(historySrc.contains('_openEdit'), isTrue);
+    expect(apiSrc.contains("ApiClient.put('/health-metrics/\$id'"), isTrue);
+  });
+
+  test('HEALTH-CRUD-DELETE Flutter confirms then calls delete', () {
+    expect(historySrc.contains('Delete reading?'), isTrue);
+    expect(historySrc.contains("Navigator.pop(ctx, false)"), isTrue);
+    expect(historySrc.contains('HealthApi.deleteMetric'), isTrue);
+    expect(historySrc.contains('_load()'), isTrue);
+    expect(apiSrc.contains("ApiClient.delete('/health-metrics/\$id')"), isTrue);
   });
 }

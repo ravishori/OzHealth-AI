@@ -19,7 +19,7 @@ from pydantic import ValidationError
 from app.api.routes import health_metrics as hm_route
 from app.core.database import get_db
 from app.core.deps import get_current_user
-from app.schemas.health_metric import ALLOWED_METRIC_TYPES, HealthMetricCreate
+from app.schemas.health_metric import ALLOWED_METRIC_TYPES, HealthMetricCreate, HealthMetricUpdate
 
 
 def _user(uid: int = 1):
@@ -55,6 +55,13 @@ def _result_all(rows):
     result = MagicMock()
     result.scalars.return_value.all.return_value = rows
     result.scalar_one_or_none.return_value = None
+    return result
+
+
+def _result_one(obj):
+    result = MagicMock()
+    result.scalar_one_or_none.return_value = obj
+    result.scalars.return_value.all.return_value = [obj] if obj is not None else []
     return result
 
 
@@ -585,3 +592,206 @@ async def test_health_family_sec_08_http_default_list_sql(hm_app):
     assert resp.status_code == 200
     sql = _stmt_sql(captured[-1])
     assert "family_member_id is null" in sql
+
+
+def _owned_db(metric):
+    async def override_db():
+        db = AsyncMock()
+        db.execute = AsyncMock(return_value=_result_one(metric))
+        db.commit = AsyncMock()
+        db.refresh = AsyncMock()
+        db.delete = AsyncMock()
+        yield db
+
+    return override_db
+
+
+@pytest.mark.anyio
+async def test_health_crud_sec_01_owner_can_edit(hm_app):
+    user = _user(1)
+    app = hm_app(user)
+    metric = _metric(7, value=72, notes="resting")
+    app.dependency_overrides[get_db] = _owned_db(metric)
+    with patch.object(hm_route.CacheService, "delete", AsyncMock()), patch.object(
+        hm_route.CacheService, "invalidate_prefix", AsyncMock()
+    ):
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            resp = await client.put(
+                "/api/v1/health-metrics/7",
+                json={"value": 80, "notes": "after walk"},
+            )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["value"] == 80
+    assert body["notes"] == "after walk"
+    assert body["id"] == 7
+    assert metric.value == 80
+
+
+@pytest.mark.anyio
+async def test_health_crud_sec_02_owner_can_delete(hm_app):
+    user = _user(1)
+    app = hm_app(user)
+    metric = _metric(7, value=72)
+    app.dependency_overrides[get_db] = _owned_db(metric)
+    with patch.object(hm_route.CacheService, "delete", AsyncMock()) as cache_del, patch.object(
+        hm_route.CacheService, "invalidate_prefix", AsyncMock()
+    ):
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            resp = await client.delete("/api/v1/health-metrics/7")
+    assert resp.status_code == 200
+    assert resp.json()["message"] == "Health metric deleted"
+    cache_del.assert_awaited()
+
+
+@pytest.mark.anyio
+async def test_health_crud_sec_03_04_family_member_edit_delete(hm_app):
+    user = _user(1)
+    app = hm_app(user)
+    metric = _metric(9, family_member_id=10, value=88)
+    app.dependency_overrides[get_db] = _owned_db(metric)
+    with patch.object(hm_route.CacheService, "delete", AsyncMock()), patch.object(
+        hm_route.CacheService, "invalidate_prefix", AsyncMock()
+    ):
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            edited = await client.put(
+                "/api/v1/health-metrics/9",
+                json={"value": 90},
+            )
+            deleted = await client.delete("/api/v1/health-metrics/9")
+    assert edited.status_code == 200
+    assert edited.json()["family_member_id"] == 10
+    assert edited.json()["value"] == 90
+    assert deleted.status_code == 200
+
+
+@pytest.mark.anyio
+async def test_health_crud_sec_05_06_cross_user_edit_delete_404(hm_app):
+    user = _user(2)
+    app = hm_app(user)
+    app.dependency_overrides[get_db] = _owned_db(None)
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        edited = await client.put("/api/v1/health-metrics/7", json={"value": 1})
+        deleted = await client.delete("/api/v1/health-metrics/7")
+    assert edited.status_code == 404
+    assert deleted.status_code == 404
+
+
+@pytest.mark.anyio
+async def test_health_crud_sec_07_family_id_and_type_cannot_reassign(hm_app):
+    user = _user(1)
+    app = hm_app(user)
+    metric = _metric(7, family_member_id=10, metric_type="heart_rate", value=72)
+    app.dependency_overrides[get_db] = _owned_db(metric)
+    with patch.object(hm_route.CacheService, "delete", AsyncMock()), patch.object(
+        hm_route.CacheService, "invalidate_prefix", AsyncMock()
+    ):
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            resp = await client.put(
+                "/api/v1/health-metrics/7",
+                json={
+                    "value": 75,
+                    "family_member_id": 999,
+                    "metric_type": "weight",
+                },
+            )
+    assert resp.status_code == 200
+    assert metric.family_member_id == 10
+    assert metric.metric_type == "heart_rate"
+    assert metric.value == 75
+
+
+@pytest.mark.anyio
+async def test_health_crud_sec_08_unauthenticated_edit_delete_rejected():
+    app = FastAPI()
+    app.include_router(hm_route.router, prefix="/api/v1/health-metrics")
+
+    async def _db():
+        db = AsyncMock()
+        yield db
+
+    app.dependency_overrides[get_db] = _db
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        edited = await client.put("/api/v1/health-metrics/1", json={"value": 1})
+        deleted = await client.delete("/api/v1/health-metrics/1")
+    assert edited.status_code in (401, 403, 422)
+    assert deleted.status_code in (401, 403, 422)
+
+
+@pytest.mark.anyio
+async def test_health_crud_sec_09_10_missing_and_repeat_delete(hm_app):
+    user = _user(1)
+    app = hm_app(user)
+    app.dependency_overrides[get_db] = _owned_db(None)
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        missing_edit = await client.put(
+            "/api/v1/health-metrics/404", json={"value": 1}
+        )
+        missing_del = await client.delete("/api/v1/health-metrics/404")
+        repeat_del = await client.delete("/api/v1/health-metrics/404")
+    assert missing_edit.status_code == 404
+    assert missing_del.status_code == 404
+    assert repeat_del.status_code == 404
+
+
+def test_health_crud_sec_11_no_sensitive_logging():
+    for fn in (hm_route.update_metric, hm_route.delete_metric):
+        src = inspect.getsource(fn)
+        extra_line = [line for line in src.splitlines() if "extra=" in line]
+        joined = " ".join(extra_line)
+        assert "user_id" in joined
+        assert "notes" not in joined
+        assert '"value"' not in joined
+        assert "'value'" not in joined
+
+
+@pytest.mark.anyio
+async def test_health_crud_edit_02_bp_requires_value2(hm_app):
+    user = _user(1)
+    app = hm_app(user)
+    metric = _metric(3, metric_type="blood_pressure", value=120, value2=80)
+    app.dependency_overrides[get_db] = _owned_db(metric)
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        missing = await client.put(
+            "/api/v1/health-metrics/3", json={"value": 118}
+        )
+    assert missing.status_code == 422
+    with patch.object(hm_route.CacheService, "delete", AsyncMock()), patch.object(
+        hm_route.CacheService, "invalidate_prefix", AsyncMock()
+    ):
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            ok = await client.put(
+                "/api/v1/health-metrics/3",
+                json={"value": 118, "value2": 76},
+            )
+    assert ok.status_code == 200
+    assert ok.json()["value"] == 118
+    assert ok.json()["value2"] == 76
+
+
+def test_health_crud_edit_06_07_update_schema_rejects_bad_values():
+    with pytest.raises(ValidationError):
+        HealthMetricUpdate(value=float("nan"))
+    future = datetime.now(timezone.utc) + timedelta(days=2)
+    with pytest.raises(ValidationError):
+        HealthMetricUpdate(value=70, recorded_at=future)
+    ok = HealthMetricUpdate(value=70, notes="  ok  ")
+    assert ok.notes == "ok"

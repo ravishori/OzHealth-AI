@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:vitapulse_ai/core/network/api_client.dart';
+import 'package:vitapulse_ai/core/utils/error_handler.dart';
+import 'package:vitapulse_ai/shared/widgets/empty_state.dart';
+import 'package:vitapulse_ai/shared/widgets/error_state.dart';
 import 'package:vitapulse_ai/theme/design_tokens/app_radius.dart';
 import 'package:vitapulse_ai/theme/theme_extensions.dart';
 
@@ -13,6 +16,8 @@ class FamilyScreen extends StatefulWidget {
 
 class _FamilyScreenState extends State<FamilyScreen> {
   bool _loading = true;
+  bool _deleting = false;
+  String? _error;
   List<Map<String, dynamic>> _members = [];
 
   @override
@@ -21,25 +26,44 @@ class _FamilyScreenState extends State<FamilyScreen> {
     _loadMembers();
   }
 
-  Future<void> _loadMembers() async {
-    setState(() => _loading = true);
+  Future<void> _loadMembers({bool soft = false}) async {
+    setState(() {
+      // Initial / hard load: full-screen spinner. Soft refresh keeps content.
+      if (!soft || _members.isEmpty) _loading = true;
+      _error = null;
+    });
     try {
       final resp = await ApiClient.get('/family/');
+      if (!mounted) return;
       final data = resp.data;
       setState(() {
         _members = (data as List<dynamic>).cast<Map<String, dynamic>>();
+        _loading = false;
+        _error = null;
       });
     } catch (e) {
-      if (mounted) {
+      if (!mounted) return;
+      final message = ErrorHandler.getMessage(e);
+      setState(() {
+        _loading = false;
+        // Distinguish error from empty: only when we have no members to show.
+        if (_members.isEmpty) {
+          _error = message;
+        }
+      });
+      if (_members.isNotEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('Failed to load family members'),
+            content: Text(message),
             backgroundColor: Theme.of(context).colorScheme.error,
+            action: SnackBarAction(
+              label: 'Retry',
+              textColor: Colors.white,
+              onPressed: () => _loadMembers(soft: true),
+            ),
           ),
         );
       }
-    } finally {
-      setState(() => _loading = false);
     }
   }
 
@@ -65,9 +89,14 @@ class _FamilyScreenState extends State<FamilyScreen> {
     );
 
     if (confirmed == true) {
+      if (_deleting) return;
+      setState(() => _deleting = true);
       try {
         await ApiClient.delete('/family/$id');
-        setState(() => _members.removeWhere((m) => m['id'] == id));
+        setState(() {
+          _members.removeWhere((m) => m['id'] == id);
+          _deleting = false;
+        });
         if (mounted) {
           final hc = HealthcareColors.of(context);
           ScaffoldMessenger.of(context).showSnackBar(
@@ -78,14 +107,14 @@ class _FamilyScreenState extends State<FamilyScreen> {
           );
         }
       } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('Failed to remove member'),
-              backgroundColor: Theme.of(context).colorScheme.error,
-            ),
-          );
-        }
+        if (!mounted) return;
+        setState(() => _deleting = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(ErrorHandler.getMessage(e)),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
       }
     }
   }
@@ -160,7 +189,7 @@ class _FamilyScreenState extends State<FamilyScreen> {
                         extra: member,
                       );
                       if (updated == true && mounted) {
-                        await _loadMembers();
+                        await _loadMembers(soft: true);
                       }
                     },
                   ),
@@ -192,6 +221,16 @@ class _FamilyScreenState extends State<FamilyScreen> {
                 allergies,
                 cs.secondary,
                 'No allergies recorded',
+              ),
+              const SizedBox(height: 20),
+              OutlinedButton.icon(
+                key: const Key('family-member-medications'),
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  context.push('/home/family/medications');
+                },
+                icon: const Icon(Icons.medication_outlined),
+                label: const Text('Medications'),
               ),
             ],
           ),
@@ -283,61 +322,65 @@ class _FamilyScreenState extends State<FamilyScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Family Members'),
+        actions: [
+          IconButton(
+            key: const Key('family-medications-hub'),
+            tooltip: 'Family medications',
+            icon: const Icon(Icons.medication_outlined),
+            onPressed: () => context.push('/home/family/medications'),
+          ),
+        ],
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
           final added = await context.push('/home/family/add');
-          if (added == true) _loadMembers();
+          if (added == true) _loadMembers(soft: true);
         },
         backgroundColor: cs.primary,
         child: const Icon(Icons.add, color: Colors.white),
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: _loadMembers,
-              child: _members.isEmpty
-                  ? _buildEmptyState()
-                  : ListView.builder(
-                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 90),
-                      itemCount: _members.length,
-                      itemBuilder: (ctx, i) => _buildMemberTile(_members[i]),
-                    ),
-            ),
-    );
-  }
-
-  Widget _buildEmptyState() {
-    final cs = Theme.of(context).colorScheme;
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.family_restroom,
-              size: 72, color: cs.primary.withValues(alpha: 0.4)),
-          const SizedBox(height: 16),
-          Text('No family members yet',
-              style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: cs.onSurfaceVariant)),
-          const SizedBox(height: 8),
-          Text(
-            'Add your family members to track\ntheir health profiles',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13),
-          ),
-          const SizedBox(height: 24),
-          ElevatedButton.icon(
-            onPressed: () async {
-              final added = await context.push('/home/family/add');
-              if (added == true) _loadMembers();
-            },
-            icon: const Icon(Icons.add),
-            label: const Text('Add Family Member'),
-          ),
-        ],
-      ),
+      body: _loading && _members.isEmpty
+          ? const Center(
+              child: CircularProgressIndicator(key: Key('family-loading')),
+            )
+          : _error != null && _members.isEmpty
+              ? ErrorState(
+                  message: _error!,
+                  onRetry: () => _loadMembers(),
+                )
+              : RefreshIndicator(
+                  onRefresh: () => _loadMembers(soft: true),
+                  child: _members.isEmpty
+                      ? ListView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          children: [
+                            SizedBox(
+                              height: MediaQuery.sizeOf(context).height * 0.6,
+                              child: EmptyState(
+                                key: const Key('family-empty'),
+                                icon: Icons.family_restroom,
+                                title: 'No family members yet',
+                                subtitle:
+                                    'Add your family members to track their health profiles',
+                                actionLabel: 'Add Family Member',
+                                onAction: () async {
+                                  final added =
+                                      await context.push('/home/family/add');
+                                  if (added == true) {
+                                    _loadMembers(soft: true);
+                                  }
+                                },
+                              ),
+                            ),
+                          ],
+                        )
+                      : ListView.builder(
+                          padding: const EdgeInsets.fromLTRB(16, 12, 16, 90),
+                          itemCount: _members.length,
+                          itemBuilder: (ctx, i) =>
+                              _buildMemberTile(_members[i]),
+                        ),
+                ),
     );
   }
 
@@ -404,7 +447,7 @@ class _FamilyScreenState extends State<FamilyScreen> {
                     extra: member,
                   );
                   if (updated == true && mounted) {
-                    await _loadMembers();
+                    await _loadMembers(soft: true);
                   }
                 },
               ),

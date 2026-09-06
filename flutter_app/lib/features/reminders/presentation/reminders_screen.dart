@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:vitapulse_ai/core/network/api_client.dart';
 import 'package:vitapulse_ai/core/notifications/local_reminder_notifications.dart';
+import 'package:vitapulse_ai/core/utils/error_handler.dart';
 import 'package:vitapulse_ai/features/reminders/presentation/add_reminder_screen.dart';
+import 'package:vitapulse_ai/shared/widgets/empty_state.dart';
+import 'package:vitapulse_ai/shared/widgets/error_state.dart';
 import 'package:vitapulse_ai/shared/widgets/shimmer_box.dart';
 import 'package:vitapulse_ai/theme/design_tokens/app_radius.dart';
 import 'package:vitapulse_ai/theme/design_tokens/app_spacing.dart';
@@ -19,6 +22,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
   List<Map<String, dynamic>> _reminders = [];
   bool _loading = true;
   String _error = '';
+  bool _mutating = false;
 
   @override
   void initState() {
@@ -26,31 +30,53 @@ class _RemindersScreenState extends State<RemindersScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadReminders());
   }
 
-  Future<void> _loadReminders() async {
+  Future<void> _loadReminders({bool soft = false}) async {
     setState(() {
-      _loading = true;
+      if (!soft || _reminders.isEmpty) _loading = true;
       _error = '';
     });
     try {
       final resp = await ApiClient.get('/reminders/');
+      if (!mounted) return;
       setState(() {
         _reminders = List<Map<String, dynamic>>.from(
           resp.data is List ? resp.data : (resp.data['reminders'] ?? []),
         );
         _loading = false;
+        _error = '';
       });
     } catch (e) {
+      if (!mounted) return;
+      final message = ErrorHandler.getMessage(e);
       setState(() {
-        _error = 'Failed to load reminders.';
         _loading = false;
+        // Keep prior list on soft-refresh failure.
+        if (_reminders.isEmpty) {
+          _error = message;
+        }
       });
+      if (_reminders.isNotEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(message),
+            backgroundColor: Theme.of(context).colorScheme.error,
+            action: SnackBarAction(
+              label: 'Retry',
+              textColor: Colors.white,
+              onPressed: () => _loadReminders(soft: true),
+            ),
+          ),
+        );
+      }
     }
   }
 
   Future<void> _toggleReminder(Map<String, dynamic> reminder) async {
+    if (_mutating) return;
     final id = reminder['id'];
     final currentActive = reminder['is_active'] == true;
     setState(() {
+      _mutating = true;
       reminder['is_active'] = !currentActive;
     });
     try {
@@ -80,16 +106,22 @@ class _RemindersScreenState extends State<RemindersScreen> {
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to update reminder')),
+          SnackBar(content: Text(ErrorHandler.getMessage(e))),
         );
       }
+    } finally {
+      if (mounted) setState(() => _mutating = false);
     }
   }
 
   Future<void> _deleteReminder(
       Map<String, dynamic> reminder, int index) async {
+    if (_mutating) return;
     final id = reminder['id'];
-    setState(() => _reminders.removeAt(index));
+    setState(() {
+      _mutating = true;
+      _reminders.removeAt(index);
+    });
     try {
       await ApiClient.delete('/reminders/$id');
       final scheduleId = id is int ? id : int.tryParse('$id');
@@ -108,9 +140,11 @@ class _RemindersScreenState extends State<RemindersScreen> {
       setState(() => _reminders.insert(index, reminder));
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to delete reminder')),
+          SnackBar(content: Text(ErrorHandler.getMessage(e))),
         );
       }
+    } finally {
+      if (mounted) setState(() => _mutating = false);
     }
   }
 
@@ -195,7 +229,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
             tooltip: 'Refresh',
-            onPressed: _loadReminders,
+            onPressed: () => _loadReminders(soft: true),
           ),
         ],
       ),
@@ -203,7 +237,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () async {
           final added = await context.push('/home/reminders/add');
-          if (added == true) _loadReminders();
+          if (added == true) _loadReminders(soft: true);
         },
         icon: const Icon(Icons.add_rounded),
         label: const Text('Add Reminder',
@@ -213,10 +247,9 @@ class _RemindersScreenState extends State<RemindersScreen> {
   }
 
   Widget _buildBody(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
-    if (_loading) {
+    if (_loading && _reminders.isEmpty) {
       return ListView(
+        key: const Key('reminders-loading'),
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
         children: const [
           ShimmerCard(height: 96),
@@ -227,46 +260,10 @@ class _RemindersScreenState extends State<RemindersScreen> {
       );
     }
 
-    if (_error.isNotEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: cs.errorContainer.withValues(alpha: 0.5),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(Icons.error_outline_rounded,
-                    color: cs.error, size: 48),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Could not load reminders',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: cs.onSurface,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                _error,
-                style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 24),
-              FilledButton.icon(
-                onPressed: _loadReminders,
-                icon: const Icon(Icons.refresh_rounded, size: 18),
-                label: const Text('Try again'),
-              ),
-            ],
-          ),
-        ),
+    if (_error.isNotEmpty && _reminders.isEmpty) {
+      return ErrorState(
+        message: _error,
+        onRetry: () => _loadReminders(),
       );
     }
 
@@ -275,7 +272,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
     }
 
     return RefreshIndicator(
-      onRefresh: _loadReminders,
+      onRefresh: () => _loadReminders(soft: true),
       child: ListView.builder(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
         itemCount: _reminders.length,
@@ -288,75 +285,17 @@ class _RemindersScreenState extends State<RemindersScreen> {
   }
 
   Widget _buildEmptyState(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final hc = HealthcareColors.of(context);
-
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 100,
-              height: 100,
-              decoration: BoxDecoration(
-                gradient: RadialGradient(
-                  colors: [
-                    hc.vitaWarning.withValues(alpha: 0.15),
-                    hc.vitaWarning.withValues(alpha: 0.04),
-                  ],
-                ),
-                shape: BoxShape.circle,
-              ),
-              child: Container(
-                margin: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: hc.vitaWarning.withValues(alpha: 0.12),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(Icons.alarm_outlined,
-                    color: hc.vitaWarning, size: 36),
-              ),
-            ),
-            const SizedBox(height: 24),
-            Text(
-              'No reminders yet',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w700,
-                color: cs.onSurface,
-                letterSpacing: -0.3,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Stay on track with your medications by setting up reminders.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: cs.onSurfaceVariant,
-                fontSize: 14,
-                height: 1.5,
-              ),
-            ),
-            const SizedBox(height: 28),
-            FilledButton.icon(
-              onPressed: () async {
-                final added = await context.push('/home/reminders/add');
-                if (added == true) _loadReminders();
-              },
-              icon: const Icon(Icons.add_rounded, size: 18),
-              label: const Text('Add your first reminder'),
-              style: FilledButton.styleFrom(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 24, vertical: 14),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14)),
-              ),
-            ),
-          ],
-        ),
-      ),
+    return EmptyState(
+      key: const Key('reminders-empty'),
+      icon: Icons.alarm_outlined,
+      title: 'No reminders yet',
+      subtitle:
+          'Stay on track with your medications by setting up reminders.',
+      actionLabel: 'Add your first reminder',
+      onAction: () async {
+        final added = await context.push('/home/reminders/add');
+        if (added == true) _loadReminders(soft: true);
+      },
     );
   }
 

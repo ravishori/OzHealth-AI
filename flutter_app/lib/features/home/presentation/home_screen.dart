@@ -329,9 +329,10 @@ class _HomeScreenState extends State<HomeScreen>
             onPressed: _showServerSetup,
           ),
         IconButton(
+          key: const Key('home-notifications-bell'),
           icon:    const Icon(Icons.notifications_outlined, color: Colors.white),
           tooltip: 'Notifications',
-          onPressed: () {}, // placeholder — screen not yet implemented
+          onPressed: () => context.push('/home/notifications'),
         ),
         _buildProfileMenu(),
         const SizedBox(width: 4),
@@ -876,6 +877,14 @@ class _FamilyTab extends StatelessWidget {
         ),
         const SizedBox(height: AppSpacing.x2),
         _WideActionCard(
+          icon: Icons.medication_outlined,
+          title: 'Family Medications',
+          subtitle: 'View reminders managed for family members',
+          color: hc.prescription,
+          onTap: () => context.push('/home/family/medications'),
+        ),
+        const SizedBox(height: AppSpacing.x2),
+        _WideActionCard(
           icon: Icons.qr_code_2_rounded,
           title: 'Shared ePrescriptions',
           subtitle: 'View prescriptions shared with you',
@@ -946,6 +955,36 @@ class _MoreTab extends StatelessWidget {
             onTap:    () => context.push('/home/settings/appearance'),
           );
         }),
+        const SizedBox(height: _kSectionSpacing),
+        _SectionHeader(
+            icon: Icons.support_outlined,
+            title: 'Support',
+            subtitle: 'About, help and feedback',
+            color: cs.primary),
+        const SizedBox(height: _kSectionGap),
+        _WideActionCard(
+          icon: Icons.info_outline,
+          title: 'About',
+          subtitle: 'Version and legal notices',
+          color: cs.primary,
+          onTap: () => context.push('/home/settings/about'),
+        ),
+        const SizedBox(height: AppSpacing.x2),
+        _WideActionCard(
+          icon: Icons.help_outline,
+          title: 'Help',
+          subtitle: 'How to use HealthNest',
+          color: cs.secondary,
+          onTap: () => context.push('/home/settings/help'),
+        ),
+        const SizedBox(height: AppSpacing.x2),
+        _WideActionCard(
+          icon: Icons.feedback_outlined,
+          title: 'Feedback',
+          subtitle: 'Open your email app to send a message',
+          color: hc.discharge,
+          onTap: () => context.push('/home/settings/feedback'),
+        ),
         const SizedBox(height: _kSectionSpacing),
         _SectionHeader(
             icon: Icons.explore_outlined,

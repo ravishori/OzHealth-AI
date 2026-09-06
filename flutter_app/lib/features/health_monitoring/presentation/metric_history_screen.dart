@@ -1,5 +1,6 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:vitapulse_ai/features/health_monitoring/data/health_api.dart';
 import 'package:vitapulse_ai/features/health_monitoring/data/health_metrics_chart.dart';
@@ -80,6 +81,67 @@ class _MetricHistoryScreenState extends State<MetricHistoryScreen> {
         _error = 'Unable to load your recorded measurements. Please try again.';
         _loading = false;
       });
+    }
+  }
+
+  Map<String, dynamic> _metricExtra(RecordedMetricSample sample) => {
+        'id': sample.id,
+        'metric_type': sample.metricType,
+        'value': sample.value,
+        'value2': sample.value2,
+        'notes': sample.notes,
+        'recorded_at': sample.recordedAt.toIso8601String(),
+        'family_member_id': sample.familyMemberId,
+        'unit': sample.unit,
+      };
+
+  Future<void> _openEdit(RecordedMetricSample sample) async {
+    if (sample.id == null) return;
+    await context.push('/home/health/log', extra: {
+      'familyMemberId': widget.familyMemberId ?? sample.familyMemberId,
+      'metric': _metricExtra(sample),
+    });
+    if (mounted) await _load();
+  }
+
+  Future<void> _confirmDelete(RecordedMetricSample sample) async {
+    if (sample.id == null) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete reading?'),
+        content: const Text(
+          'This removes the recorded measurement from your history. '
+          'This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      await HealthApi.deleteMetric(sample.id!);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Reading deleted')),
+      );
+      await _load();
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Failed to delete reading. Please try again.'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
     }
   }
 
@@ -220,9 +282,26 @@ class _MetricHistoryScreenState extends State<MetricHistoryScreen> {
                   subtitle: Text(
                     DateFormat('d MMM yyyy, h:mm a').format(sample.recordedAt),
                   ),
-                  trailing: sample.notes == null || sample.notes!.isEmpty
-                      ? null
-                      : Icon(Icons.notes, color: cs.onSurfaceVariant),
+                  trailing: sample.id == null
+                      ? (sample.notes == null || sample.notes!.isEmpty
+                          ? null
+                          : Icon(Icons.notes, color: cs.onSurfaceVariant))
+                      : PopupMenuButton<String>(
+                          onSelected: (action) {
+                            if (action == 'edit') {
+                              _openEdit(sample);
+                            } else if (action == 'delete') {
+                              _confirmDelete(sample);
+                            }
+                          },
+                          itemBuilder: (context) => const [
+                            PopupMenuItem(value: 'edit', child: Text('Edit')),
+                            PopupMenuItem(
+                              value: 'delete',
+                              child: Text('Delete'),
+                            ),
+                          ],
+                        ),
                 ),
               );
             }),

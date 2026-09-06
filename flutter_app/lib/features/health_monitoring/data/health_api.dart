@@ -51,4 +51,27 @@ class HealthApi {
         });
     return resp.data as Map<String, dynamic>;
   }
+
+  /// Update an existing reading. Type and family subject stay frozen server-side.
+  static Future<Map<String, dynamic>> updateMetric({
+    required int id,
+    required double value,
+    double? value2,
+    String? unit,
+    String? notes,
+    String? recordedAt,
+  }) async {
+    final resp = await ApiClient.put('/health-metrics/$id', data: {
+      'value': value,
+      if (value2 != null) 'value2': value2,
+      if (unit != null) 'unit': unit,
+      'notes': notes,
+      if (recordedAt != null) 'recorded_at': recordedAt,
+    });
+    return resp.data as Map<String, dynamic>;
+  }
+
+  static Future<void> deleteMetric(int id) async {
+    await ApiClient.delete('/health-metrics/$id');
+  }
 }

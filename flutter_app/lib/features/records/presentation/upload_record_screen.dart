@@ -12,7 +12,9 @@ import 'package:vitapulse_ai/theme/design_tokens/app_radius.dart';
 import 'package:vitapulse_ai/theme/theme_extensions.dart';
 
 class UploadRecordScreen extends StatefulWidget {
-  const UploadRecordScreen({super.key});
+  final Future<XFile?> Function(ImageSource source)? imagePicker;
+
+  const UploadRecordScreen({super.key, this.imagePicker});
 
   @override
   State<UploadRecordScreen> createState() => _UploadRecordScreenState();
@@ -29,6 +31,7 @@ class _UploadRecordScreenState extends State<UploadRecordScreen> {
   String? _selectedFileName;
   bool _isImage = false;
   bool _loading = false;
+  bool _picking = false;
 
   List<_RecordTypeOption> _buildRecordTypes(
       HealthcareColors hc, ColorScheme cs) {
@@ -53,37 +56,71 @@ class _UploadRecordScreenState extends State<UploadRecordScreen> {
     super.dispose();
   }
 
-  Future<void> _pickImage() async {
-    final picker = ImagePicker();
-    final picked = await picker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 85,
-    );
-    if (picked != null) {
+  Future<void> _pickImage(ImageSource source) async {
+    if (_picking || _loading) return;
+    _picking = true;
+    try {
+      final picker = widget.imagePicker;
+      final picked = picker != null
+          ? await picker(source)
+          : await ImagePicker().pickImage(
+              source: source,
+              imageQuality: 85,
+            );
+      if (!mounted || picked == null) return;
       setState(() {
         _selectedFile = File(picked.path);
         _selectedFileName = picked.name;
         _isImage = true;
       });
+    } catch (_) {
+      if (!mounted) return;
+      final message = source == ImageSource.camera
+          ? 'Could not open the camera. Please try again.'
+          : 'Could not open the gallery. Please try again.';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+    } finally {
+      _picking = false;
     }
   }
 
   Future<void> _pickFile() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['pdf'],
-      allowMultiple: false,
-    );
-    if (result != null && result.files.single.path != null) {
-      setState(() {
-        _selectedFile = File(result.files.single.path!);
-        _selectedFileName = result.files.single.name;
-        _isImage = false;
-      });
+    if (_picking || _loading) return;
+    _picking = true;
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf'],
+        allowMultiple: false,
+      );
+      if (!mounted) return;
+      if (result != null && result.files.single.path != null) {
+        setState(() {
+          _selectedFile = File(result.files.single.path!);
+          _selectedFileName = result.files.single.name;
+          _isImage = false;
+        });
+      }
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Could not open the document picker. Please try again.'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+    } finally {
+      _picking = false;
     }
   }
 
   Future<void> _showFilePicker() async {
+    if (_picking || _loading) return;
     final cs = Theme.of(context).colorScheme;
     await showModalBottomSheet(
       context: context,
@@ -91,7 +128,7 @@ class _UploadRecordScreenState extends State<UploadRecordScreen> {
         borderRadius: AppRadius.bottomSheet,
       ),
       builder: (ctx) => SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(20),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -102,6 +139,24 @@ class _UploadRecordScreenState extends State<UploadRecordScreen> {
                       fontSize: 17, fontWeight: FontWeight.bold)),
               const SizedBox(height: 16),
               ListTile(
+                key: const Key('record-upload-source-camera'),
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: cs.primary.withValues(alpha: 0.08),
+                    borderRadius: AppRadius.brSm,
+                  ),
+                  child: Icon(Icons.camera_alt_outlined, color: cs.primary),
+                ),
+                title: const Text('Take photo'),
+                subtitle: const Text('Capture with camera'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _pickImage(ImageSource.camera);
+                },
+              ),
+              ListTile(
+                key: const Key('record-upload-source-gallery'),
                 leading: Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
@@ -110,14 +165,15 @@ class _UploadRecordScreenState extends State<UploadRecordScreen> {
                   ),
                   child: Icon(Icons.image_outlined, color: cs.primary),
                 ),
-                title: const Text('Choose Image'),
+                title: const Text('Choose from gallery'),
                 subtitle: const Text('JPG, PNG from gallery'),
                 onTap: () {
                   Navigator.pop(ctx);
-                  _pickImage();
+                  _pickImage(ImageSource.gallery);
                 },
               ),
               ListTile(
+                key: const Key('record-upload-source-pdf'),
                 leading: Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
@@ -155,6 +211,7 @@ class _UploadRecordScreenState extends State<UploadRecordScreen> {
   }
 
   Future<void> _upload() async {
+    if (_loading) return;
     if (!_formKey.currentState!.validate()) return;
     if (_selectedFile == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -330,7 +387,8 @@ class _UploadRecordScreenState extends State<UploadRecordScreen> {
               _label('File *'),
               const SizedBox(height: 6),
               GestureDetector(
-                onTap: _loading ? null : _showFilePicker,
+                key: const Key('record-upload-file-area'),
+                onTap: (_loading || _picking) ? null : _showFilePicker,
                 child: _selectedFile != null
                     ? _buildFilePreview(cs)
                     : _buildFilePickerPlaceholder(cs),
@@ -378,7 +436,7 @@ class _UploadRecordScreenState extends State<UploadRecordScreen> {
             ),
             const SizedBox(height: 4),
             Text(
-              'Supports JPG, PNG, PDF',
+              'Camera, gallery, or PDF',
               style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12),
             ),
           ],

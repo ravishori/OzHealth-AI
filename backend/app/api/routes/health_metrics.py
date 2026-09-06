@@ -12,7 +12,7 @@ from app.core.logging_config import audit_log
 from app.models.family_member import FamilyMember
 from app.models.health_metric import HealthMetric
 from app.models.user import User
-from app.schemas.health_metric import HealthMetricCreate, HealthMetricResponse
+from app.schemas.health_metric import HealthMetricCreate, HealthMetricUpdate, HealthMetricResponse
 from app.services.cache_service import HEALTH_SUMMARY_TTL, CacheService
 
 router = APIRouter(route_class=LoggedAPIRoute)
@@ -108,6 +108,29 @@ def _owner_query(user_id: int, family_member_id: Optional[int]):
     return query
 
 
+async def _get_owned_metric(
+    db: AsyncSession,
+    metric_id: int,
+    user_id: int,
+) -> HealthMetric:
+    """404 for missing or cross-user rows (no existence leak)."""
+    result = await db.execute(
+        select(HealthMetric).where(
+            HealthMetric.id == metric_id,
+            HealthMetric.user_id == user_id,
+        )
+    )
+    metric = result.scalar_one_or_none()
+    if not metric:
+        raise HTTPException(status_code=404, detail="Health metric not found")
+    return metric
+
+
+async def _invalidate_metric_summary(user_id: int) -> None:
+    await CacheService.delete(f"metrics:summary:{user_id}")
+    await CacheService.invalidate_prefix(f"metrics:summary:{user_id}")
+
+
 @router.post("/", response_model=HealthMetricResponse)
 async def log_metric(
     data: HealthMetricCreate,
@@ -133,8 +156,7 @@ async def log_metric(
     await db.commit()
     await db.refresh(metric)
 
-    await CacheService.delete(f"metrics:summary:{current_user.id}")
-    await CacheService.invalidate_prefix(f"metrics:summary:{current_user.id}")
+    await _invalidate_metric_summary(current_user.id)
 
     audit_log.info(
         "health_metric_logged",
@@ -239,3 +261,58 @@ async def get_summary(
 
     await CacheService.set(cache_key, summary, ttl=HEALTH_SUMMARY_TTL)
     return summary
+
+
+@router.put("/{metric_id}", response_model=HealthMetricResponse)
+async def update_metric(
+    metric_id: int,
+    data: HealthMetricUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    metric = await _get_owned_metric(db, metric_id, current_user.id)
+
+    if metric.metric_type == "blood_pressure" and data.value2 is None:
+        raise HTTPException(
+            status_code=422,
+            detail="blood pressure requires systolic (value) and diastolic (value2)",
+        )
+
+    metric.value = data.value
+    if data.value2 is not None:
+        metric.value2 = data.value2
+    if data.unit is not None:
+        metric.unit = data.unit
+    if "notes" in data.model_fields_set:
+        metric.notes = data.notes
+    if data.recorded_at is not None:
+        metric.recorded_at = data.recorded_at
+
+    await db.commit()
+    await db.refresh(metric)
+    await _invalidate_metric_summary(current_user.id)
+
+    audit_log.info(
+        "health_metric_updated",
+        extra={"user_id": current_user.id, "metric_id": metric.id, "metric_type": metric.metric_type},
+    )
+    return metric
+
+
+@router.delete("/{metric_id}")
+async def delete_metric(
+    metric_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    metric = await _get_owned_metric(db, metric_id, current_user.id)
+    metric_type = metric.metric_type
+    await db.delete(metric)
+    await db.commit()
+    await _invalidate_metric_summary(current_user.id)
+
+    audit_log.info(
+        "health_metric_deleted",
+        extra={"user_id": current_user.id, "metric_id": metric_id, "metric_type": metric_type},
+    )
+    return {"message": "Health metric deleted"}

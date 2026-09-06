@@ -6,6 +6,10 @@ import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:vitapulse_ai/core/network/api_client.dart';
+import 'package:vitapulse_ai/core/utils/error_handler.dart';
+import 'package:vitapulse_ai/features/records/data/records_share.dart';
+import 'package:vitapulse_ai/shared/widgets/empty_state.dart';
+import 'package:vitapulse_ai/shared/widgets/error_state.dart';
 import 'package:vitapulse_ai/theme/design_tokens/app_radius.dart';
 import 'package:vitapulse_ai/theme/theme_extensions.dart';
 
@@ -23,6 +27,8 @@ class _RecordsScreenState extends State<RecordsScreen>
   // Per-tab cache — prevents all-tab flicker when switching tabs
   final Map<int, List<Map<String, dynamic>>> _recordsByTab = {};
   final Set<int> _loadingTabs = {};
+  final Map<int, String> _errorsByTab = {};
+  bool _deleting = false;
 
   static const _tabs = [
     _TabInfo('All', null, Icons.folder_outlined),
@@ -52,7 +58,11 @@ class _RecordsScreenState extends State<RecordsScreen>
 
   Future<void> _loadRecords([int? tabIndex]) async {
     final idx = tabIndex ?? _tabController.index;
-    setState(() => _loadingTabs.add(idx));
+    final hasCache = _recordsByTab.containsKey(idx);
+    setState(() {
+      _loadingTabs.add(idx);
+      _errorsByTab.remove(idx);
+    });
     try {
       final selectedTab = _tabs[idx];
       final queryParams = selectedTab.type != null
@@ -64,14 +74,28 @@ class _RecordsScreenState extends State<RecordsScreen>
         setState(() {
           _recordsByTab[idx] =
               (resp.data as List<dynamic>).cast<Map<String, dynamic>>();
+          _errorsByTab.remove(idx);
         });
       }
     } catch (e) {
-      if (mounted) {
+      if (!mounted) return;
+      final message = ErrorHandler.getMessage(e);
+      setState(() {
+        // Keep prior tab data on refresh failure (stale-while-error).
+        if (!hasCache) {
+          _errorsByTab[idx] = message;
+        }
+      });
+      if (hasCache) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('Failed to load records'),
+            content: Text(message),
             backgroundColor: Theme.of(context).colorScheme.error,
+            action: SnackBarAction(
+              label: 'Retry',
+              textColor: Colors.white,
+              onPressed: () => _loadRecords(idx),
+            ),
           ),
         );
       }
@@ -158,9 +182,27 @@ class _RecordsScreenState extends State<RecordsScreen>
     }
   }
 
+  Future<void> _shareRecordFile(Map<String, dynamic> record) async {
+    final id = record['id'];
+    if (id is! int && id is! num) return;
+    final recordId = id is int ? id : (id as num).toInt();
+    try {
+      await RecordsShare.shareOwnedRecord(recordId: recordId, record: record);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not share file. Please try again.'),
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _deleteRecord(Map<String, dynamic> record) async {
     final id = record['id'];
     if (id == null) return;
+    if (_deleting) return;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -173,22 +215,26 @@ class _RecordsScreenState extends State<RecordsScreen>
       ),
     );
     if (confirmed != true) return;
+    setState(() => _deleting = true);
     try {
       await ApiClient.delete('/records/$id');
       if (!mounted) return;
       Navigator.of(context).pop(); // close sheet
       _recordsByTab.clear();
+      _errorsByTab.clear();
       await _loadRecords(_tabController.index);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Record deleted')),
       );
-    } catch (_) {
+    } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to delete record')),
+          SnackBar(content: Text(ErrorHandler.getMessage(e))),
         );
       }
+    } finally {
+      if (mounted) setState(() => _deleting = false);
     }
   }
 
@@ -246,9 +292,22 @@ class _RecordsScreenState extends State<RecordsScreen>
 
   Widget _buildTabContent(int tabIndex) {
     final isLoading = _loadingTabs.contains(tabIndex);
-    if (isLoading && !_recordsByTab.containsKey(tabIndex)) {
-      return const Center(child: CircularProgressIndicator());
+    final error = _errorsByTab[tabIndex];
+    final hasCache = _recordsByTab.containsKey(tabIndex);
+
+    if (isLoading && !hasCache) {
+      return const Center(
+        child: CircularProgressIndicator(key: Key('records-loading')),
+      );
     }
+
+    if (error != null && !hasCache) {
+      return ErrorState(
+        message: error,
+        onRetry: () => _loadRecords(tabIndex),
+      );
+    }
+
     final records = _recordsByTab[tabIndex] ?? [];
     if (records.isEmpty && !isLoading) {
       return _buildEmptyState(tabIndex);
@@ -264,35 +323,27 @@ class _RecordsScreenState extends State<RecordsScreen>
   }
 
   Widget _buildEmptyState(int tabIndex) {
-    final cs = Theme.of(context).colorScheme;
     final label =
         tabIndex == 0 ? 'records' : _tabs[tabIndex].label.toLowerCase();
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+    return RefreshIndicator(
+      onRefresh: () => _loadRecords(tabIndex),
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
         children: [
-          Icon(Icons.folder_open_outlined,
-              size: 64, color: cs.primary.withValues(alpha: 0.4)),
-          const SizedBox(height: 16),
-          Text('No $label found',
-              style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: cs.onSurfaceVariant)),
-          const SizedBox(height: 8),
-          Text(
-            'Upload your medical records\nto keep them organised',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13),
-          ),
-          const SizedBox(height: 24),
-          ElevatedButton.icon(
-            onPressed: () async {
-              final uploaded = await context.push('/home/records/upload');
-              if (uploaded == true) _loadRecords(tabIndex);
-            },
-            icon: const Icon(Icons.upload_file),
-            label: const Text('Upload Record'),
+          SizedBox(
+            height: MediaQuery.sizeOf(context).height * 0.55,
+            child: EmptyState(
+              key: const Key('records-empty'),
+              icon: Icons.folder_open_outlined,
+              title: 'No $label found',
+              subtitle:
+                  'Upload your medical records to keep them organised',
+              actionLabel: 'Upload Record',
+              onAction: () async {
+                final uploaded = await context.push('/home/records/upload');
+                if (uploaded == true) _loadRecords(tabIndex);
+              },
+            ),
           ),
         ],
       ),
@@ -373,7 +424,10 @@ class _RecordsScreenState extends State<RecordsScreen>
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       isScrollControlled: true,
-      builder: (ctx) => DraggableScrollableSheet(
+      builder: (ctx) {
+        var fileBusy = false;
+        return StatefulBuilder(
+          builder: (ctx, setSheet) => DraggableScrollableSheet(
         initialChildSize: 0.5,
         minChildSize: 0.3,
         maxChildSize: 0.85,
@@ -437,13 +491,46 @@ class _RecordsScreenState extends State<RecordsScreen>
                     _detailRow(Icons.notes_outlined, 'Notes', notes),
                   const SizedBox(height: 20),
                   FilledButton.icon(
-                    onPressed: () => _viewRecordFile(record),
-                    icon: const Icon(Icons.open_in_new),
+                    onPressed: fileBusy
+                        ? null
+                        : () async {
+                            setSheet(() => fileBusy = true);
+                            try {
+                              await _viewRecordFile(record);
+                            } finally {
+                              setSheet(() => fileBusy = false);
+                            }
+                          },
+                    icon: fileBusy
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.open_in_new),
                     label: const Text('View / download file'),
                   ),
                   const SizedBox(height: 8),
                   OutlinedButton.icon(
-                    onPressed: () => _deleteRecord(record),
+                    key: const Key('record_share_button'),
+                    onPressed: fileBusy
+                        ? null
+                        : () async {
+                            setSheet(() => fileBusy = true);
+                            try {
+                              await _shareRecordFile(record);
+                            } finally {
+                              setSheet(() => fileBusy = false);
+                            }
+                          },
+                    icon: const Icon(Icons.share_outlined),
+                    label: const Text('Share file'),
+                  ),
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed: fileBusy
+                        ? null
+                        : () => _deleteRecord(record),
                     icon: Icon(Icons.delete_outline, color: cs.error),
                     label: Text('Delete record', style: TextStyle(color: cs.error)),
                   ),
@@ -452,7 +539,9 @@ class _RecordsScreenState extends State<RecordsScreen>
             ),
           ],
         ),
-      ),
+          ),
+        );
+      },
     );
   }
 

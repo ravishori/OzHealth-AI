@@ -8,7 +8,9 @@ import os
 
 from app.core.database import get_db
 from app.core.deps import get_current_user
+from app.core.logging_config import audit_log
 from app.models.user import User
+from app.models.family_member import FamilyMember
 from app.models.prescription import Prescription
 from app.models.medical_record import MedicalRecord
 from app.utils.storage import save_file
@@ -20,6 +22,43 @@ from app.services.prescription_ocr_pipeline import (
 )
 
 router = APIRouter(route_class=LoggedAPIRoute)
+
+
+async def _require_owned_active_family_member(
+    db: AsyncSession,
+    family_member_id: int,
+    user_id: int,
+) -> FamilyMember:
+    """404 for missing, inactive, or cross-user members (no existence leak)."""
+    result = await db.execute(
+        select(FamilyMember).where(
+            FamilyMember.id == family_member_id,
+            FamilyMember.user_id == user_id,
+            FamilyMember.is_active == True,  # noqa: E712
+        )
+    )
+    member = result.scalar_one_or_none()
+    if not member:
+        raise HTTPException(status_code=404, detail="Family member not found")
+    return member
+
+
+async def _family_names_for_prescriptions(
+    db: AsyncSession,
+    prescriptions: list[Prescription],
+    user_id: int,
+) -> dict[int, str]:
+    ids = {p.family_member_id for p in prescriptions if p.family_member_id}
+    if not ids:
+        return {}
+    result = await db.execute(
+        select(FamilyMember).where(
+            FamilyMember.id.in_(ids),
+            FamilyMember.user_id == user_id,
+        )
+    )
+    members = result.scalars().all()
+    return {m.id: m.name for m in members}
 
 
 @router.post("/ocr")
@@ -115,12 +154,21 @@ async def confirm_prescription(
             detail="At least one medicine with a name is required to save.",
         )
 
+    owned_family_member_id: Optional[int] = None
+    owned_family_member_name: Optional[str] = None
+    if family_member_id is not None:
+        member = await _require_owned_active_family_member(
+            db, family_member_id, current_user.id
+        )
+        owned_family_member_id = member.id
+        owned_family_member_name = member.name
+
     file_url = await save_file(file, folder=f"prescriptions/{current_user.id}")
     file_type = file.filename.rsplit(".", 1)[-1].lower() if file.filename else "unknown"
 
     record = MedicalRecord(
         user_id=current_user.id,
-        family_member_id=family_member_id,
+        family_member_id=owned_family_member_id,
         record_type="prescription",
         title=file.filename,
         file_url=file_url,
@@ -133,7 +181,7 @@ async def confirm_prescription(
     prescription = Prescription(
         user_id=current_user.id,
         medical_record_id=record.id,
-        family_member_id=family_member_id,
+        family_member_id=owned_family_member_id,
         raw_ocr_text=raw_ocr_text,
         extracted_medicines=json.dumps(sanitized),
         doctor_name=doctor_name,
@@ -162,6 +210,15 @@ async def confirm_prescription(
     if len(medicine_names) >= 2:
         duplicate_check = await detect_duplicate_medicines(medicine_names)
 
+    audit_log.info(
+        "prescription_confirmed",
+        extra={
+            "user_id": current_user.id,
+            "prescription_id": prescription.id,
+            "family_member_id": owned_family_member_id,
+        },
+    )
+
     return {
         "id": prescription.id,
         "medicines": sanitized,
@@ -169,6 +226,8 @@ async def confirm_prescription(
         "hospital": hospital,
         "summary": prescription.ai_summary,
         "medical_record_id": record.id,
+        "family_member_id": owned_family_member_id,
+        "family_member_name": owned_family_member_name,
         "allergy_alerts": allergy_check,
         "duplicate_warnings": duplicate_check,
         "user_confirmed": True,
@@ -246,7 +305,13 @@ async def list_prescriptions(
         .order_by(Prescription.created_at.desc())
     )
     prescriptions = result.scalars().all()
-    return [_to_dict(p) for p in prescriptions]
+    names = await _family_names_for_prescriptions(
+        db, list(prescriptions), current_user.id
+    )
+    return [
+        _to_dict(p, family_member_name=names.get(p.family_member_id))
+        for p in prescriptions
+    ]
 
 
 @router.get("/{prescription_id}")
@@ -264,14 +329,19 @@ async def get_prescription(
     p = result.scalar_one_or_none()
     if not p:
         raise HTTPException(status_code=404, detail="Prescription not found")
-    return _to_dict(p)
+    names = await _family_names_for_prescriptions(db, [p], current_user.id)
+    return _to_dict(
+        p,
+        family_member_name=names.get(p.family_member_id) if p.family_member_id else None,
+    )
 
 
-def _to_dict(p: Prescription) -> dict:
+def _to_dict(p: Prescription, family_member_name: Optional[str] = None) -> dict:
     return {
         "id": p.id,
         "user_id": p.user_id,
         "family_member_id": p.family_member_id,
+        "family_member_name": family_member_name,
         "medical_record_id": p.medical_record_id,
         "doctor_name": p.doctor_name,
         "hospital": p.hospital,

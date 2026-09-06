@@ -9,7 +9,10 @@ import 'package:vitapulse_ai/core/network/api_client.dart';
 import 'package:vitapulse_ai/core/utils/auth_storage.dart';
 import 'package:vitapulse_ai/core/utils/error_handler.dart';
 import 'package:vitapulse_ai/features/auth/data/auth_api.dart';
+import 'package:vitapulse_ai/features/profile/data/lifestyle_preferences.dart';
+import 'package:vitapulse_ai/features/profile/data/nominatim_reverse_geocode.dart';
 import 'package:vitapulse_ai/features/profile/data/user_api.dart';
+import 'package:vitapulse_ai/features/profile/presentation/lifestyle_preferences_section.dart';
 import 'package:vitapulse_ai/shared/widgets/loading_button.dart';
 import 'package:vitapulse_ai/theme/design_tokens/app_radius.dart';
 import 'package:vitapulse_ai/theme/theme_extensions.dart';
@@ -68,6 +71,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _loading = true;
   bool _loggingOut = false;
   bool _exportingData = false;
+  bool _lifestyleSaving = false;
   Map<String, dynamic>? _profile;
 
   @override
@@ -239,6 +243,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ));
       }
       return false;
+    }
+  }
+
+  Future<bool> _saveLifestylePreferences(Map<String, String> next) async {
+    if (_lifestyleSaving) return false;
+    setState(() => _lifestyleSaving = true);
+    try {
+      final ok = await _patchProfile({
+        'lifestyle_preferences': LifestylePreferencesCodec.toPayload(next),
+      });
+      if (ok && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Lifestyle preferences updated'),
+        ));
+      }
+      return ok;
+    } finally {
+      if (mounted) setState(() => _lifestyleSaving = false);
     }
   }
 
@@ -619,6 +641,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
               chipColor: hc.vitaWarning,
               hint: 'e.g. Penicillin, Peanuts, Latex',
             ),
+          ),
+          const SizedBox(height: 16),
+          LifestylePreferencesSection(
+            values: LifestylePreferencesCodec.parse(
+              p['lifestyle_preferences'],
+            ),
+            saving: _lifestyleSaving,
+            onSave: _saveLifestylePreferences,
           ),
           const SizedBox(height: 16),
           ListTile(
@@ -1046,8 +1076,7 @@ class _AddressSheetState extends State<_AddressSheet> {
   String? _selectedState;
   bool _gpsLoading = false;
   String? _gpsStatus;
-
-  static const _nominatimReverse = 'https://nominatim.openstreetmap.org/reverse';
+  final NominatimReverseGeocode _geocoder = NominatimReverseGeocode();
 
   @override
   void initState() {
@@ -1072,12 +1101,28 @@ class _AddressSheetState extends State<_AddressSheet> {
   // ── GPS reverse-geocode ───────────────────────────────────────────────────
 
   Future<void> _autoFillFromGps() async {
+    if (_gpsLoading) return;
+    // Capture existing typed values so a failed lookup never wipes them.
+    final priorSuburb = _suburbCtrl.text;
+    final priorCity = _cityCtrl.text;
+    final priorPostcode = _postcodeCtrl.text;
+    final priorState = _selectedState;
+
     setState(() { _gpsLoading = true; _gpsStatus = 'Requesting location…'; });
 
     try {
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
-        if (mounted) setState(() { _gpsLoading = false; _gpsStatus = 'Location services are disabled.'; });
+        if (mounted) {
+          setState(() {
+            _gpsLoading = false;
+            _gpsStatus = 'Location services are disabled.';
+            _suburbCtrl.text = priorSuburb;
+            _cityCtrl.text = priorCity;
+            _postcodeCtrl.text = priorPostcode;
+            _selectedState = priorState;
+          });
+        }
         return;
       }
 
@@ -1086,7 +1131,16 @@ class _AddressSheetState extends State<_AddressSheet> {
         perm = await Geolocator.requestPermission();
       }
       if (perm == LocationPermission.denied || perm == LocationPermission.deniedForever) {
-        if (mounted) setState(() { _gpsLoading = false; _gpsStatus = 'Location permission denied.'; });
+        if (mounted) {
+          setState(() {
+            _gpsLoading = false;
+            _gpsStatus = 'Location permission denied.';
+            _suburbCtrl.text = priorSuburb;
+            _cityCtrl.text = priorCity;
+            _postcodeCtrl.text = priorPostcode;
+            _selectedState = priorState;
+          });
+        }
         return;
       }
 
@@ -1097,53 +1151,44 @@ class _AddressSheetState extends State<_AddressSheet> {
 
       if (mounted) setState(() => _gpsStatus = 'Looking up address…');
 
-      // Reverse geocode via Nominatim
-      final resp = await Dio().get(
-        _nominatimReverse,
-        queryParameters: {
-          'lat': pos.latitude,
-          'lon': pos.longitude,
-          'format': 'json',
-          'addressdetails': '1',
-        },
-        options: Options(
-          headers: {'User-Agent': 'HealthNest/1.0'},
-          receiveTimeout: const Duration(seconds: 10),
-        ),
+      final result = await _geocoder.reverse(
+        latitude: pos.latitude,
+        longitude: pos.longitude,
       );
 
-      final addr = (resp.data as Map<String, dynamic>)['address'] as Map<String, dynamic>?;
-      if (addr == null || addr['country_code'] != 'au') {
-        if (mounted) {
-          setState(() {
-            _gpsLoading = false;
-            _gpsStatus = 'Could not detect an Australian address.';
-          });
-        }
+      if (!mounted) return;
+
+      if (!result.ok) {
+        setState(() {
+          _gpsLoading = false;
+          _gpsStatus = result.safeMessage;
+          // Keep whatever the user already entered.
+          _suburbCtrl.text = priorSuburb;
+          _cityCtrl.text = priorCity;
+          _postcodeCtrl.text = priorPostcode;
+          _selectedState = priorState;
+        });
         return;
       }
 
-      final suburb  = (addr['suburb'] ?? addr['neighbourhood'] ?? addr['hamlet'] ?? '') as String;
-      final city    = (addr['city'] ?? addr['town'] ?? addr['city_district'] ?? '') as String;
-      final stateFull = (addr['state'] ?? '') as String;
-      final postcode  = (addr['postcode'] ?? '') as String;
-      final stateAbbr = _AuLoc.fullToAbbr[stateFull];
-
+      final stateAbbr = _AuLoc.fullToAbbr[result.stateFull ?? ''];
+      setState(() {
+        _gpsLoading = false;
+        _gpsStatus = null;
+        _suburbCtrl.text = result.suburb ?? '';
+        _cityCtrl.text = result.city ?? '';
+        _postcodeCtrl.text = result.postcode ?? '';
+        if (stateAbbr != null) _selectedState = stateAbbr;
+      });
+    } catch (_) {
       if (mounted) {
         setState(() {
           _gpsLoading = false;
-          _gpsStatus = null;
-          _suburbCtrl.text  = suburb;
-          _cityCtrl.text    = city;
-          _postcodeCtrl.text= postcode;
-          if (stateAbbr != null) _selectedState = stateAbbr;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _gpsLoading = false;
-          _gpsStatus = 'GPS failed. Please enter address manually.';
+          _gpsStatus = 'Address lookup failed. Please enter address manually.';
+          _suburbCtrl.text = priorSuburb;
+          _cityCtrl.text = priorCity;
+          _postcodeCtrl.text = priorPostcode;
+          _selectedState = priorState;
         });
       }
     }
@@ -1274,7 +1319,13 @@ class _AddressSheetState extends State<_AddressSheet> {
             maxLength: 4,
           ),
 
-          const SizedBox(height: 4),
+          const SizedBox(height: 8),
+          Text(
+            NominatimReverseGeocode.attribution,
+            style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
+          ),
+
+          const SizedBox(height: 8),
 
           // Save / Cancel
           Row(
