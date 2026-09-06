@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vitapulse_ai/features/health_monitoring/data/health_metrics_chart.dart';
+import 'package:vitapulse_ai/features/health_monitoring/presentation/log_metric_screen.dart';
 import 'package:vitapulse_ai/features/legal/legal_copy.dart';
 import 'package:vitapulse_ai/shared/widgets/clinical_safety_banner.dart';
 import 'package:vitapulse_ai/theme/app_theme_builder.dart';
@@ -44,7 +45,7 @@ void main() {
   test('HEALTH-FL-03 add reading form opens via route', () {
     expect(routerSrc.contains('health/log'), isTrue);
     expect(logSrc.contains('Log Health Metric'), isTrue);
-    expect(homeSrc.contains("push('/home/health/log')"), isTrue);
+    expect(homeSrc.contains("push('/home/health/log'"), isTrue);
   });
 
   test('HEALTH-FL-04 metric-specific fields', () {
@@ -68,7 +69,7 @@ void main() {
   test('HEALTH-FL-06 successful save refreshes history', () {
     expect(homeSrc.contains('_loadMetrics()'), isTrue);
     expect(logSrc.contains("ApiClient.post('/health-metrics/'"), isTrue);
-    expect(homeSrc.contains("push('/home/health/log')"), isTrue);
+    expect(homeSrc.contains("push('/home/health/log'"), isTrue);
   });
 
   test('HEALTH-FL-07 empty state renders', () {
@@ -126,6 +127,42 @@ void main() {
     expect(logSrc.contains('Logged For'), isTrue);
     expect(logSrc.contains("'family_member_id': _selectedFamilyMemberId"), isTrue);
     expect(apiSrc.contains('family_member_id'), isTrue);
+  });
+
+  test('HEALTH-FAMILY-FUNC-03 log inherits Health Monitor subject only if owned', () {
+    expect(homeSrc.contains('_logRouteExtra()'), isTrue);
+    expect(homeSrc.contains("'familyMemberId': _familyMemberId"), isTrue);
+    expect(routerSrc.contains('LogMetricScreen(initialFamilyMemberId:'), isTrue);
+    expect(logSrc.contains('initialFamilyMemberId'), isTrue);
+    expect(logSrc.contains('ownedFamilyMemberSelection'), isTrue);
+  });
+
+  test('HEALTH-FAMILY-SEC-09 arbitrary family id cannot preselect log subject', () {
+    expect(
+      ownedFamilyMemberSelection(
+        requestedId: 10,
+        ownedMembers: [
+          {'id': 10, 'name': 'Alex'},
+        ],
+      ),
+      10,
+    );
+    expect(
+      ownedFamilyMemberSelection(
+        requestedId: 999,
+        ownedMembers: [
+          {'id': 10, 'name': 'Alex'},
+        ],
+      ),
+      isNull,
+    );
+    expect(
+      ownedFamilyMemberSelection(
+        requestedId: 10,
+        ownedMembers: const [],
+      ),
+      isNull,
+    );
   });
 
   test('HEALTH-FL-16 existing log + monitor routes remain', () {

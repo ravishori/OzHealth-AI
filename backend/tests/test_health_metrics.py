@@ -445,3 +445,143 @@ def test_health_be_create_schema_rejects_future_and_nonfinite():
         metric_type="blood_pressure", value=118, value2=76
     )
     assert ok.value2 == 76
+
+
+@pytest.mark.anyio
+async def test_health_family_sec_03_list_owned_family_member(hm_app):
+    user = _user(1)
+    app = hm_app(user)
+    rows = [_metric(1, family_member_id=10, value=88)]
+    captured = []
+
+    async def override_db():
+        db = AsyncMock()
+
+        async def execute(stmt, *a, **k):
+            captured.append(stmt)
+            return _result_all(rows)
+
+        db.execute = AsyncMock(side_effect=execute)
+        yield db
+
+    app.dependency_overrides[get_db] = override_db
+    member = SimpleNamespace(id=10, user_id=1, name="Alex", is_active=True)
+    with patch.object(
+        hm_route, "_require_owned_active_family_member", AsyncMock(return_value=member)
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.get("/api/v1/health-metrics/?family_member_id=10")
+    assert resp.status_code == 200
+    assert resp.json()[0]["family_member_id"] == 10
+    sql = _stmt_sql(captured[-1])
+    assert "family_member_id = 10" in sql
+    assert "user_id = 1" in sql
+
+
+@pytest.mark.anyio
+async def test_health_family_sec_04_owned_summary(hm_app):
+    user = _user(1)
+    app = hm_app(user)
+    now = datetime.now(timezone.utc)
+    hr = [
+        _metric(
+            1,
+            family_member_id=10,
+            metric_type="heart_rate",
+            value=88,
+            recorded_at=now,
+        )
+    ]
+
+    async def override_db():
+        db = AsyncMock()
+        db.execute = AsyncMock(return_value=_result_all(hr))
+        yield db
+
+    app.dependency_overrides[get_db] = override_db
+    member = SimpleNamespace(id=10, user_id=1, name="Alex", is_active=True)
+    with patch.object(
+        hm_route, "_require_owned_active_family_member", AsyncMock(return_value=member)
+    ), patch.object(
+        hm_route.CacheService, "get", AsyncMock(return_value=None)
+    ), patch.object(
+        hm_route.CacheService, "set", AsyncMock()
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.get(
+                "/api/v1/health-metrics/summary?family_member_id=10"
+            )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["heart_rate"]["latest_value"] == 88
+
+
+@pytest.mark.anyio
+async def test_health_family_sec_05_summary_cross_user_404(hm_app):
+    user = _user(1)
+    app = hm_app(user)
+    transport = ASGITransport(app=app)
+    with patch.object(
+        hm_route,
+        "_require_owned_active_family_member",
+        AsyncMock(side_effect=HTTPException(status_code=404, detail="Family member not found")),
+    ):
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.get(
+                "/api/v1/health-metrics/summary?family_member_id=999"
+            )
+    assert resp.status_code == 404
+
+
+@pytest.mark.anyio
+async def test_health_family_sec_07_unauthenticated_summary_rejected():
+    app = FastAPI()
+    app.include_router(hm_route.router, prefix="/api/v1/health-metrics")
+
+    async def _db():
+        db = AsyncMock()
+        yield db
+
+    app.dependency_overrides[get_db] = _db
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        summary = await client.get("/api/v1/health-metrics/summary")
+        listing = await client.get("/api/v1/health-metrics/?family_member_id=1")
+    assert summary.status_code in (401, 403, 422)
+    assert listing.status_code in (401, 403, 422)
+
+
+def test_health_family_sec_08_default_list_is_self_only():
+    self_sql = _stmt_sql(hm_route._owner_query(1, None))
+    fam_sql = _stmt_sql(hm_route._owner_query(1, 10))
+    assert "user_id = 1" in self_sql
+    assert "family_member_id is null" in self_sql
+    assert "family_member_id = 10" in fam_sql
+    assert "is null" not in fam_sql
+
+
+@pytest.mark.anyio
+async def test_health_family_sec_08_http_default_list_sql(hm_app):
+    user = _user(1)
+    app = hm_app(user)
+    captured = []
+
+    async def override_db():
+        db = AsyncMock()
+
+        async def execute(stmt, *a, **k):
+            captured.append(stmt)
+            return _result_all([])
+
+        db.execute = AsyncMock(side_effect=execute)
+        yield db
+
+    app.dependency_overrides[get_db] = override_db
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.get("/api/v1/health-metrics/")
+    assert resp.status_code == 200
+    sql = _stmt_sql(captured[-1])
+    assert "family_member_id is null" in sql

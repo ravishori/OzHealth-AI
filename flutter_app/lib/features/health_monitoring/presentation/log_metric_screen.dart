@@ -5,10 +5,28 @@ import 'package:vitapulse_ai/theme/design_tokens/app_radius.dart';
 import 'package:vitapulse_ai/theme/theme_extensions.dart';
 
 class LogMetricScreen extends StatefulWidget {
-  const LogMetricScreen({super.key});
+  /// Subject selected on Health Monitor. Applied only if it matches an
+  /// owned family member after `GET /family/` loads.
+  const LogMetricScreen({super.key, this.initialFamilyMemberId});
+
+  final int? initialFamilyMemberId;
 
   @override
   State<LogMetricScreen> createState() => _LogMetricScreenState();
+}
+
+/// Returns [requestedId] only when it appears in [ownedMembers].
+int? ownedFamilyMemberSelection({
+  required int? requestedId,
+  required List<Map<String, dynamic>> ownedMembers,
+}) {
+  if (requestedId == null) return null;
+  for (final m in ownedMembers) {
+    final raw = m['id'];
+    if (raw == requestedId) return requestedId;
+    if (raw is num && raw.toInt() == requestedId) return requestedId;
+  }
+  return null;
 }
 
 class _LogMetricScreenState extends State<LogMetricScreen> {
@@ -91,6 +109,10 @@ class _LogMetricScreenState extends State<LogMetricScreen> {
           resp.data is List ? resp.data : (resp.data['members'] ?? []),
         );
         _loadingFamily = false;
+        _selectedFamilyMemberId = ownedFamilyMemberSelection(
+          requestedId: widget.initialFamilyMemberId,
+          ownedMembers: _familyMembers,
+        );
       });
     } catch (_) {
       setState(() => _loadingFamily = false);

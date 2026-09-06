@@ -169,7 +169,22 @@ final appRouter = GoRouter(
           ),
         ),
         GoRoute(path: 'health', builder: (_, __) => const HealthMonitoringScreen()),
-        GoRoute(path: 'health/log', builder: (_, __) => const LogMetricScreen()),
+        GoRoute(
+          path: 'health/log',
+          builder: (_, state) {
+            int? familyMemberId;
+            final extra = state.extra;
+            if (extra is Map) {
+              final raw = extra['familyMemberId'];
+              if (raw is int) {
+                familyMemberId = raw;
+              } else if (raw is num) {
+                familyMemberId = raw.toInt();
+              }
+            }
+            return LogMetricScreen(initialFamilyMemberId: familyMemberId);
+          },
+        ),
         GoRoute(
           path: 'health/history',
           builder: (_, state) {

@@ -40,6 +40,11 @@ class _HealthMonitoringScreenState extends State<HealthMonitoringScreen> {
     return 'Family member';
   }
 
+  Map<String, Object?> _logRouteExtra() => {
+        'familyMemberId': _familyMemberId,
+        'subjectLabel': _subjectLabel,
+      };
+
   List<_MetricConfig> _buildMetricConfigs(
       HealthcareColors hc, ColorScheme cs) =>
       [
@@ -231,7 +236,7 @@ class _HealthMonitoringScreenState extends State<HealthMonitoringScreen> {
       body: _buildBody(),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () async {
-          await context.push('/home/health/log');
+          await context.push('/home/health/log', extra: _logRouteExtra());
           _loadMetrics();
         },
         icon: const Icon(Icons.add),
@@ -258,7 +263,8 @@ class _HealthMonitoringScreenState extends State<HealthMonitoringScreen> {
         exception: _exception,
         onRetry: _loadMetrics,
         onEmailReport: _emailErrorReport,
-        onLogMetric: () => context.push('/home/health/log'),
+        onLogMetric: () =>
+            context.push('/home/health/log', extra: _logRouteExtra()),
       );
     }
 
@@ -293,7 +299,8 @@ class _HealthMonitoringScreenState extends State<HealthMonitoringScreen> {
           const SizedBox(height: 16),
           if (_samples.isEmpty)
             _EmptyMetrics(
-              onAdd: () => context.push('/home/health/log'),
+              onAdd: () =>
+                  context.push('/home/health/log', extra: _logRouteExtra()),
             )
           else
             ...configs.map((config) => _buildMetricCard(config)),
