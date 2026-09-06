@@ -150,7 +150,9 @@ class _LogMetricScreenState extends State<LogMetricScreen> {
     Map<String, dynamic> data = {
       'metric_type': metricKey,
       'recorded_at': _loggedAt.toIso8601String(),
-      'notes': _notesController.text.trim(),
+      'unit': _unit,
+      if (_notesController.text.trim().isNotEmpty)
+        'notes': _notesController.text.trim(),
       if (_selectedFamilyMemberId != null)
         'family_member_id': _selectedFamilyMemberId,
     };

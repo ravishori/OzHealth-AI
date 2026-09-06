@@ -22,6 +22,7 @@ import 'package:vitapulse_ai/features/reminders/presentation/reminders_screen.da
 import 'package:vitapulse_ai/features/reminders/presentation/add_reminder_screen.dart';
 import 'package:vitapulse_ai/features/health_monitoring/presentation/health_monitoring_screen.dart';
 import 'package:vitapulse_ai/features/health_monitoring/presentation/log_metric_screen.dart';
+import 'package:vitapulse_ai/features/health_monitoring/presentation/metric_history_screen.dart';
 import 'package:vitapulse_ai/features/ai_assistant/presentation/ai_chat_screen.dart';
 import 'package:vitapulse_ai/features/ai_assistant/presentation/ai_conversation_history_screen.dart';
 import 'package:vitapulse_ai/features/emergency/presentation/emergency_screen.dart';
@@ -169,6 +170,20 @@ final appRouter = GoRouter(
         ),
         GoRoute(path: 'health', builder: (_, __) => const HealthMonitoringScreen()),
         GoRoute(path: 'health/log', builder: (_, __) => const LogMetricScreen()),
+        GoRoute(
+          path: 'health/history',
+          builder: (_, state) {
+            final extra = state.extra as Map<String, dynamic>? ?? const {};
+            return MetricHistoryScreen(
+              metricType: extra['metricType'] as String? ?? 'heart_rate',
+              label: extra['label'] as String? ?? 'Health reading',
+              unit: extra['unit'] as String? ?? '',
+              initialDays: extra['days'] as int? ?? 30,
+              familyMemberId: extra['familyMemberId'] as int?,
+              subjectLabel: extra['subjectLabel'] as String? ?? 'Myself',
+            );
+          },
+        ),
         GoRoute(path: 'ai-chat', builder: (_, __) => const AiChatScreen()),
         GoRoute(
           path: 'ai-chat/history',

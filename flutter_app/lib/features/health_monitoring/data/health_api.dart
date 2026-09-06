@@ -24,15 +24,19 @@ class HealthApi {
   }
 
   /// Fetch metric history. [days] filters to last N days.
+  /// [limit] is capped by the API (max 200) so home cards can show
+  /// multiple metric types without dropping older types.
   static Future<List<dynamic>> getMetrics({
     String? metricType,
     int? familyMemberId,
     int days = 30,
+    int limit = 200,
   }) async {
     final resp = await ApiClient.get('/health-metrics/', queryParameters: {
       if (metricType != null) 'metric_type': metricType,
       if (familyMemberId != null) 'family_member_id': familyMemberId,
       'days': days,
+      'limit': limit,
     });
     return resp.data as List<dynamic>;
   }
