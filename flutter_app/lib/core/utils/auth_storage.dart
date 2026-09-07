@@ -55,5 +55,21 @@ class AuthStorage {
     return true;
   }
 
-  static Future<void> clearAll() async => _storage.deleteAll();
+  static Future<void> clearAll() async {
+    await _storage.deleteAll();
+    // HN-FAMILY-010 — clear in-memory active subject after credentials wipe.
+    try {
+      await _notifyFamilySubjectCleared();
+    } catch (_) {
+      // Subject bridge may be unavailable in early bootstrap / tests.
+    }
+  }
+
+  /// Set by family subject module to avoid a hard import cycle in tests.
+  static Future<void> Function()? familySubjectSessionClear;
+
+  static Future<void> _notifyFamilySubjectCleared() async {
+    final fn = familySubjectSessionClear;
+    if (fn != null) await fn();
+  }
 }

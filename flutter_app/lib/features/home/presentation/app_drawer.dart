@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:vitapulse_ai/core/utils/auth_storage.dart';
 import 'package:vitapulse_ai/features/auth/data/auth_api.dart';
+import 'package:vitapulse_ai/features/family/presentation/family_subject_switcher.dart';
 import 'package:vitapulse_ai/theme/design_tokens/app_radius.dart';
 import 'package:vitapulse_ai/theme/theme_extensions.dart';
 import 'package:vitapulse_ai/core/config/app_env.dart';
@@ -117,6 +118,9 @@ class _AppDrawerState extends State<AppDrawer> {
                     'HealthNest',
                     style: TextStyle(color: Colors.white70, fontSize: 12),
                   ),
+                  const SizedBox(height: 12),
+                  // HN-FAMILY-010 — Active Health Subject switcher.
+                  const FamilySubjectSwitcher(lightOnDark: true),
                 ],
               ),
             ),

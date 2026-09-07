@@ -134,6 +134,11 @@ async def log_metric(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    if data.family_member_id is not None:
+        await _require_owned_active_family_member(
+            db, data.family_member_id, current_user.id
+        )
+
     metric = HealthMetric(
         user_id=current_user.id,
         family_member_id=data.family_member_id,
@@ -166,6 +171,12 @@ async def list_metrics(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    # HN-FAMILY-010 / isolation — client family_member_id is not authorization.
+    if family_member_id is not None:
+        await _require_owned_active_family_member(
+            db, family_member_id, current_user.id
+        )
+
     query = select(HealthMetric).where(
         HealthMetric.user_id == current_user.id
     ).order_by(HealthMetric.recorded_at.desc()).limit(limit)
@@ -185,6 +196,11 @@ async def get_summary(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    if family_member_id is not None:
+        await _require_owned_active_family_member(
+            db, family_member_id, current_user.id
+        )
+
     cache_key = f"metrics:summary:{current_user.id}"
     if family_member_id:
         cache_key += f":fm{family_member_id}"
