@@ -5,6 +5,7 @@ from sqlalchemy import select
 from typing import Optional, Any
 import json
 import os
+import re
 
 from app.core.database import get_db
 from app.core.deps import get_current_user
@@ -12,6 +13,7 @@ from app.models.user import User
 from app.models.prescription import Prescription
 from app.models.medical_record import MedicalRecord
 from app.models.family_member import FamilyMember
+from app.models.medicine import Medicine
 from app.schemas.prescription import ManualPrescriptionCreate
 from app.utils.storage import save_file
 from app.services.ai_service import check_allergy_conflicts
@@ -59,8 +61,109 @@ async def _require_owned_active_family_member(
     return member
 
 
-def _sanitize_manual_medicines(medicines: list) -> list[dict]:
-    """Persist only safe user-confirmed fields; never invent catalogue identity."""
+def _norm_medicine_label(value: Optional[str]) -> str:
+    """Normalize medicine labels for catalogue-name compatibility (OCR-style)."""
+    if not value:
+        return ""
+    s = value.lower().strip()
+    s = re.sub(r"[®™©]", "", s)
+    s = re.sub(r"[^a-z0-9\s/+.-]", " ", s)
+    s = re.sub(r"\s+", " ", s).strip()
+    return s
+
+
+def _labels_compatible(submitted: str, candidate: Optional[str]) -> bool:
+    """
+    Name compatibility aligned with prescription OCR catalogue candidate reasons:
+    equality, containment, or prefix — requires meaningful length (≥3).
+    """
+    a = _norm_medicine_label(submitted)
+    b = _norm_medicine_label(candidate)
+    if not a or not b or len(a) < 3 or len(b) < 3:
+        return False
+    if a == b:
+        return True
+    if a in b or b in a:
+        return True
+    if b.startswith(a) or a.startswith(b):
+        return True
+    return False
+
+
+def _manual_catalogue_name_compatible(submitted_name: str, medicine: Medicine) -> bool:
+    """
+    Verify submitted medicine text is compatible with an authoritative catalogue row.
+
+    Uses existing catalogue identity fields only (name / generic_name / brand_name /
+    normalized_name). Does not treat ID existence alone as proof of match.
+    """
+    fields = (
+        getattr(medicine, "name", None),
+        getattr(medicine, "generic_name", None),
+        getattr(medicine, "brand_name", None),
+        getattr(medicine, "normalized_name", None),
+    )
+    return any(_labels_compatible(submitted_name, f) for f in fields)
+
+
+def _parse_client_catalogue_id(raw: dict) -> Optional[int]:
+    catalog_id = raw.get("catalog_medicine_id")
+    if catalog_id is None:
+        catalog_id = raw.get("medicine_id")
+    try:
+        catalog_id = int(catalog_id) if catalog_id is not None else None
+    except (TypeError, ValueError):
+        return None
+    if catalog_id is not None and catalog_id < 1:
+        return None
+    return catalog_id
+
+
+async def _validate_manual_catalogue_medicine(
+    db: AsyncSession,
+    catalog_medicine_id: int,
+    submitted_name: str,
+) -> Medicine:
+    """
+    Authoritative catalogue identity for manual entry.
+
+    Rejects nonexistent IDs and IDs whose catalogue labels are incompatible with
+    the submitted medicine name. Server decides MATCHED — never the client.
+    """
+    if catalog_medicine_id < 1:
+        raise HTTPException(status_code=400, detail="Invalid catalogue medicine id.")
+
+    result = await db.execute(
+        select(Medicine).where(Medicine.id == catalog_medicine_id)
+    )
+    medicine = result.scalar_one_or_none()
+    if not medicine:
+        raise HTTPException(
+            status_code=400,
+            detail="Catalogue medicine not found for the supplied id.",
+        )
+
+    if not _manual_catalogue_name_compatible(submitted_name, medicine):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Catalogue medicine does not match the submitted medicine name."
+            ),
+        )
+    return medicine
+
+
+async def _prepare_manual_medicines(
+    db: AsyncSession,
+    medicines: list,
+) -> list[dict]:
+    """
+    Persist only safe user-confirmed fields with server-authoritative catalogue identity.
+
+    - No catalogue id → UNMATCHED (manual name-only still supported).
+    - Catalogue id present → must exist and be name-compatible, else 4xx.
+    - Client match_status / artg_number are untrusted and ignored.
+    """
     sanitized: list[dict] = []
     for m in medicines:
         if hasattr(m, "model_dump"):
@@ -72,20 +175,8 @@ def _sanitize_manual_medicines(medicines: list) -> list[dict]:
         name = (raw.get("name") or "").strip()
         if not name:
             continue
-        catalog_id = raw.get("catalog_medicine_id")
-        if catalog_id is None:
-            catalog_id = raw.get("medicine_id")
-        try:
-            catalog_id = int(catalog_id) if catalog_id is not None else None
-        except (TypeError, ValueError):
-            catalog_id = None
-        if catalog_id is not None and catalog_id < 1:
-            catalog_id = None
-        match_status = (raw.get("match_status") or "").strip().upper() or (
-            "MATCHED" if catalog_id else "UNMATCHED"
-        )
-        if catalog_id is None:
-            match_status = "UNMATCHED"
+
+        catalog_id = _parse_client_catalogue_id(raw)
         entry: dict[str, Any] = {
             "name": name,
             "dosage": raw.get("dosage") or None,
@@ -93,9 +184,56 @@ def _sanitize_manual_medicines(medicines: list) -> list[dict]:
             "duration": raw.get("duration") or None,
             "instructions": raw.get("instructions") or None,
             "quantity": raw.get("quantity") or None,
-            "catalog_medicine_id": catalog_id,
-            "artg_number": raw.get("artg_number") or None,
-            "match_status": match_status,
+            "user_confirmed": True,
+            "source": "manual",
+            "entry_mode": "manual",
+        }
+
+        if catalog_id is None:
+            entry["catalog_medicine_id"] = None
+            entry["artg_number"] = None
+            entry["match_status"] = "UNMATCHED"
+            sanitized.append(entry)
+            continue
+
+        medicine = await _validate_manual_catalogue_medicine(db, catalog_id, name)
+        entry["catalog_medicine_id"] = medicine.id
+        # Authoritative catalogue ARTG only — never client-fabricated.
+        entry["artg_number"] = getattr(medicine, "tga_artg_number", None) or None
+        entry["match_status"] = "MATCHED"
+        sanitized.append(entry)
+
+    return sanitized
+
+
+def _sanitize_manual_medicines(medicines: list) -> list[dict]:
+    """
+    Sync field scrubber for tests / name-only rows.
+
+    Does NOT accept client MATCHED / catalogue identity as authoritative.
+    Catalogue IDs must be resolved via _prepare_manual_medicines (async).
+    """
+    sanitized: list[dict] = []
+    for m in medicines:
+        if hasattr(m, "model_dump"):
+            raw = m.model_dump()
+        elif isinstance(m, dict):
+            raw = m
+        else:
+            continue
+        name = (raw.get("name") or "").strip()
+        if not name:
+            continue
+        entry: dict[str, Any] = {
+            "name": name,
+            "dosage": raw.get("dosage") or None,
+            "frequency": raw.get("frequency") or None,
+            "duration": raw.get("duration") or None,
+            "instructions": raw.get("instructions") or None,
+            "quantity": raw.get("quantity") or None,
+            "catalog_medicine_id": None,
+            "artg_number": None,
+            "match_status": "UNMATCHED",
             "user_confirmed": True,
             "source": "manual",
             "entry_mode": "manual",
@@ -400,7 +538,7 @@ async def create_manual_prescription(
     Additional entry mode alongside POST /ocr + POST /confirm.
     Does not upload a fake OCR file or fabricate OCR output.
     """
-    sanitized = _sanitize_manual_medicines(body.medicines)
+    sanitized = await _prepare_manual_medicines(db, body.medicines)
     if not sanitized:
         raise HTTPException(
             status_code=400,

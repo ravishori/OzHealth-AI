@@ -26,6 +26,25 @@ def _user(uid: int = 1, allergies=None):
     )
 
 
+def _catalog_med(
+    mid: int,
+    name: str,
+    *,
+    generic: str | None = None,
+    brand: str | None = None,
+    artg: str | None = None,
+    normalized: str | None = None,
+):
+    return SimpleNamespace(
+        id=mid,
+        name=name,
+        generic_name=generic,
+        brand_name=brand,
+        normalized_name=normalized,
+        tga_artg_number=artg,
+    )
+
+
 def _rx_app(user=None):
     app = FastAPI()
     app.include_router(rx_route.router, prefix="/api/v1/prescriptions")
@@ -96,6 +115,10 @@ async def test_rx_manual_01_04_05_06_create_persists_distinguishable():
         rx_route, "catalogue_duplicate_warnings", new=AsyncMock(return_value={"safe": True, "duplicates": []})
     ), patch.object(
         rx_route, "_allergy_alerts_for_user", new=AsyncMock(return_value=None)
+    ), patch.object(
+        rx_route,
+        "_validate_manual_catalogue_medicine",
+        new=AsyncMock(return_value=_catalog_med(10, "Panadol", artg="12345")),
     ):
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -111,6 +134,8 @@ async def test_rx_manual_01_04_05_06_create_persists_distinguishable():
     assert body["medicines"][0]["entry_mode"] == "manual"
     assert body["medicines"][0]["source"] == "manual"
     assert body["medicines"][0]["catalog_medicine_id"] == 10
+    assert body["medicines"][0]["match_status"] == "MATCHED"
+    assert body["medicines"][0]["artg_number"] == "12345"
 
     assert len(db._added) == 1
     saved = db._added[0]
@@ -382,10 +407,19 @@ async def test_rx_manual_12_med007_catalogue_duplicate_semantics():
         "note": rx_route._DUP_NOTE,
     }
 
+    async def _validate(db, catalog_medicine_id, submitted_name):
+        if catalog_medicine_id == 10:
+            return _catalog_med(10, "Panadol")
+        if catalog_medicine_id == 11:
+            return _catalog_med(11, "Paracetamol", generic="Paracetamol")
+        raise HTTPException(status_code=400, detail="Catalogue medicine not found")
+
     with patch.object(
         rx_route, "catalogue_duplicate_warnings", new=AsyncMock(return_value=dup)
     ) as dup_fn, patch.object(
         rx_route, "_allergy_alerts_for_user", new=AsyncMock(return_value=None)
+    ), patch.object(
+        rx_route, "_validate_manual_catalogue_medicine", new=AsyncMock(side_effect=_validate)
     ):
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -407,6 +441,8 @@ async def test_rx_manual_12_med007_catalogue_duplicate_semantics():
     args = dup_fn.await_args.args
     assert len(args[1]) == 2
     assert args[1][0]["catalog_medicine_id"] == 10
+    assert args[1][0]["match_status"] == "MATCHED"
+    assert args[1][1]["catalog_medicine_id"] == 11
 
 
 def test_rx_manual_sanitize_does_not_invent_catalogue_id():
@@ -416,6 +452,23 @@ def test_rx_manual_sanitize_does_not_invent_catalogue_id():
     assert out[0]["catalog_medicine_id"] is None
     assert out[0]["match_status"] == "UNMATCHED"
     assert out[0]["entry_mode"] == "manual"
+
+
+def test_rx_manual_sanitize_strips_client_matched_claim():
+    """Client MATCHED / catalogue id are not authoritative in sync scrubber."""
+    out = rx_route._sanitize_manual_medicines(
+        [
+            {
+                "name": "Bogus",
+                "catalog_medicine_id": 999999999,
+                "match_status": "MATCHED",
+                "artg_number": "FAKE-ARTG",
+            }
+        ]
+    )
+    assert out[0]["catalog_medicine_id"] is None
+    assert out[0]["match_status"] == "UNMATCHED"
+    assert out[0]["artg_number"] is None
 
 
 def test_rx_manual_infer_entry_mode_distinguishable():
@@ -437,3 +490,300 @@ def test_rx_manual_infer_entry_mode_distinguishable():
 def test_rx_manual_schema_rejects_empty_list():
     with pytest.raises(Exception):
         ManualPrescriptionCreate(medicines=[])
+
+
+def test_rx_manual_catalogue_name_compatibility():
+    panadol = _catalog_med(1, "Panadol 500mg", generic="Paracetamol")
+    warfarin = _catalog_med(2, "Warfarin", generic="Warfarin")
+    assert rx_route._manual_catalogue_name_compatible("Panadol", panadol) is True
+    assert rx_route._manual_catalogue_name_compatible("paracetamol", panadol) is True
+    assert rx_route._manual_catalogue_name_compatible("Amoxicillin", warfarin) is False
+
+
+# ── RX-MANUAL-CAT-01..08 — catalogue identity integrity ───────────────────────
+
+
+@pytest.mark.anyio
+async def test_rx_manual_cat_01_valid_id_after_authoritative_lookup():
+    """RX-MANUAL-CAT-01"""
+    user = _user(1)
+    app = _rx_app(user)
+    db = _capture_db(201)
+
+    async def _override_db():
+        yield db
+
+    app.dependency_overrides[get_db] = _override_db
+    med = _catalog_med(10, "Panadol", generic="Paracetamol", artg="ARTG-10")
+
+    with patch.object(
+        rx_route, "_validate_manual_catalogue_medicine", new=AsyncMock(return_value=med)
+    ) as val, patch.object(
+        rx_route, "catalogue_duplicate_warnings", new=AsyncMock(return_value={"safe": True, "duplicates": []})
+    ), patch.object(
+        rx_route, "_allergy_alerts_for_user", new=AsyncMock(return_value=None)
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.post(
+                "/api/v1/prescriptions/manual",
+                json={"medicines": [{"name": "Panadol", "catalog_medicine_id": 10}]},
+            )
+    assert resp.status_code == 200
+    body = resp.json()["medicines"][0]
+    assert body["catalog_medicine_id"] == 10
+    assert body["match_status"] == "MATCHED"
+    assert body["artg_number"] == "ARTG-10"
+    val.assert_awaited()
+
+
+@pytest.mark.anyio
+async def test_rx_manual_cat_02_nonexistent_id_rejected():
+    """RX-MANUAL-CAT-02"""
+    user = _user(1)
+    app = _rx_app(user)
+
+    async def _override_db():
+        yield AsyncMock()
+
+    app.dependency_overrides[get_db] = _override_db
+
+    with patch.object(
+        rx_route,
+        "_validate_manual_catalogue_medicine",
+        new=AsyncMock(
+            side_effect=HTTPException(
+                status_code=400,
+                detail="Catalogue medicine not found for the supplied id.",
+            )
+        ),
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.post(
+                "/api/v1/prescriptions/manual",
+                json={
+                    "medicines": [
+                        {"name": "Fake", "catalog_medicine_id": 999999999}
+                    ]
+                },
+            )
+    assert resp.status_code == 400
+    assert "not found" in resp.json()["detail"].lower()
+
+
+@pytest.mark.anyio
+async def test_rx_manual_cat_03_arbitrary_id_cannot_become_matched():
+    """RX-MANUAL-CAT-03 — end-to-end validate rejects missing Medicine row."""
+    user = _user(1)
+    app = _rx_app(user)
+
+    async def _override_db():
+        db = AsyncMock()
+        result = MagicMock()
+        result.scalar_one_or_none.return_value = None
+        db.execute = AsyncMock(return_value=result)
+        yield db
+
+    app.dependency_overrides[get_db] = _override_db
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.post(
+            "/api/v1/prescriptions/manual",
+            json={
+                "medicines": [
+                    {
+                        "name": "Anything",
+                        "catalog_medicine_id": 888888,
+                        "match_status": "MATCHED",
+                    }
+                ]
+            },
+        )
+    assert resp.status_code == 400
+    assert resp.json().get("medicines") is None or "medicines" not in resp.json()
+
+
+@pytest.mark.anyio
+async def test_rx_manual_cat_04_wrong_existing_id_rejected():
+    """RX-MANUAL-CAT-04 — Amoxicillin + Warfarin catalogue id must not MATCH."""
+    user = _user(1)
+    app = _rx_app(user)
+
+    async def _override_db():
+        db = AsyncMock()
+        result = MagicMock()
+        result.scalar_one_or_none.return_value = _catalog_med(
+            55, "Warfarin 5mg", generic="Warfarin"
+        )
+        db.execute = AsyncMock(return_value=result)
+        yield db
+
+    app.dependency_overrides[get_db] = _override_db
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.post(
+            "/api/v1/prescriptions/manual",
+            json={
+                "medicines": [
+                    {"name": "Amoxicillin", "catalog_medicine_id": 55}
+                ]
+            },
+        )
+    assert resp.status_code == 400
+    assert "does not match" in resp.json()["detail"].lower()
+
+
+@pytest.mark.anyio
+async def test_rx_manual_cat_05_name_only_unmatched():
+    """RX-MANUAL-CAT-05"""
+    user = _user(1)
+    app = _rx_app(user)
+    db = _capture_db(205)
+
+    async def _override_db():
+        yield db
+
+    app.dependency_overrides[get_db] = _override_db
+
+    with patch.object(
+        rx_route, "catalogue_duplicate_warnings", new=AsyncMock(return_value={"safe": True, "duplicates": []})
+    ), patch.object(
+        rx_route, "_allergy_alerts_for_user", new=AsyncMock(return_value=None)
+    ), patch.object(
+        rx_route, "_validate_manual_catalogue_medicine"
+    ) as val:
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.post(
+                "/api/v1/prescriptions/manual",
+                json={"medicines": [{"name": "Mystery Compound"}]},
+            )
+    assert resp.status_code == 200
+    med = resp.json()["medicines"][0]
+    assert med["catalog_medicine_id"] is None
+    assert med["match_status"] == "UNMATCHED"
+    assert med["artg_number"] is None
+    val.assert_not_awaited()
+
+
+@pytest.mark.anyio
+async def test_rx_manual_cat_06_client_match_status_cannot_force_matched():
+    """RX-MANUAL-CAT-06 — without catalogue id, MATCHED claim is ignored."""
+    user = _user(1)
+    app = _rx_app(user)
+    db = _capture_db(206)
+
+    async def _override_db():
+        yield db
+
+    app.dependency_overrides[get_db] = _override_db
+
+    with patch.object(
+        rx_route, "catalogue_duplicate_warnings", new=AsyncMock(return_value={"safe": True, "duplicates": []})
+    ), patch.object(
+        rx_route, "_allergy_alerts_for_user", new=AsyncMock(return_value=None)
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.post(
+                "/api/v1/prescriptions/manual",
+                json={
+                    "medicines": [
+                        {
+                            "name": "Ibuprofen",
+                            "match_status": "MATCHED",
+                            "artg_number": "CLIENT-ARTG",
+                        }
+                    ]
+                },
+            )
+    assert resp.status_code == 200
+    med = resp.json()["medicines"][0]
+    assert med["match_status"] == "UNMATCHED"
+    assert med["catalog_medicine_id"] is None
+    assert med["artg_number"] is None
+
+
+@pytest.mark.anyio
+async def test_rx_manual_cat_07_client_artg_cannot_fabricate_metadata():
+    """RX-MANUAL-CAT-07 — ARTG comes from catalogue only after validation."""
+    user = _user(1)
+    app = _rx_app(user)
+    db = _capture_db(207)
+
+    async def _override_db():
+        yield db
+
+    app.dependency_overrides[get_db] = _override_db
+    med = _catalog_med(10, "Panadol", artg="SERVER-ARTG")
+
+    with patch.object(
+        rx_route, "_validate_manual_catalogue_medicine", new=AsyncMock(return_value=med)
+    ), patch.object(
+        rx_route, "catalogue_duplicate_warnings", new=AsyncMock(return_value={"safe": True, "duplicates": []})
+    ), patch.object(
+        rx_route, "_allergy_alerts_for_user", new=AsyncMock(return_value=None)
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.post(
+                "/api/v1/prescriptions/manual",
+                json={
+                    "medicines": [
+                        {
+                            "name": "Panadol",
+                            "catalog_medicine_id": 10,
+                            "artg_number": "CLIENT-FAKE-ARTG",
+                        }
+                    ]
+                },
+            )
+    assert resp.status_code == 200
+    assert resp.json()["medicines"][0]["artg_number"] == "SERVER-ARTG"
+
+
+@pytest.mark.anyio
+async def test_rx_manual_cat_08_med007_receives_trustworthy_identity():
+    """RX-MANUAL-CAT-08"""
+    user = _user(1)
+    app = _rx_app(user)
+    db = _capture_db(208)
+
+    async def _override_db():
+        yield db
+
+    app.dependency_overrides[get_db] = _override_db
+
+    async def _validate(db, catalog_medicine_id, submitted_name):
+        return _catalog_med(catalog_medicine_id, submitted_name)
+
+    captured = {}
+
+    async def _dup(db, medicines):
+        captured["medicines"] = medicines
+        return {"safe": True, "duplicates": [], "source": "database", "available": True}
+
+    with patch.object(
+        rx_route, "_validate_manual_catalogue_medicine", new=AsyncMock(side_effect=_validate)
+    ), patch.object(
+        rx_route, "catalogue_duplicate_warnings", new=AsyncMock(side_effect=_dup)
+    ), patch.object(
+        rx_route, "_allergy_alerts_for_user", new=AsyncMock(return_value=None)
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.post(
+                "/api/v1/prescriptions/manual",
+                json={
+                    "medicines": [
+                        {"name": "Panadol", "catalog_medicine_id": 10},
+                        {"name": "Panadol Extra", "catalog_medicine_id": 10},
+                    ]
+                },
+            )
+    assert resp.status_code == 200
+    meds = captured["medicines"]
+    assert all(m["match_status"] == "MATCHED" for m in meds)
+    assert all(m["catalog_medicine_id"] == 10 for m in meds)
+    assert all(m.get("source") == "manual" for m in meds)
