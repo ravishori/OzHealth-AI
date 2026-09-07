@@ -286,4 +286,14 @@ void main() {
       isTrue,
     );
   });
+
+  test('MED-FAV-FE-10 favourites are auth-scoped; no client user_id override', () {
+    // Client must not send user_id/owner_id; server derives principal from JWT.
+    expect(apiSrc.contains("'user_id'"), isFalse);
+    expect(apiSrc.contains("'owner_id'"), isFalse);
+    expect(apiSrc.contains('listFavourites'), isTrue);
+    expect(apiSrc.contains("ApiClient.get('/medicines/favourites')"), isTrue);
+    // Favourites screen loads from API each visit (no cross-user local stash).
+    expect(favSrc.contains('MedicineApi.listFavourites'), isTrue);
+  });
 }
