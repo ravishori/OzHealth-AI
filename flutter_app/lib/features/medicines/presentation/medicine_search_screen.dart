@@ -85,6 +85,13 @@ class _MedicineSearchScreenState extends State<MedicineSearchScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Medicine Information'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.favorite_border),
+            tooltip: 'Favourite medicines',
+            onPressed: () => context.push('/home/medicines/favourites'),
+          ),
+        ],
       ),
       body: Column(
         children: [

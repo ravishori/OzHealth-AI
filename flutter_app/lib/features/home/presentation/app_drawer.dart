@@ -163,6 +163,12 @@ class _AppDrawerState extends State<AppDrawer> {
                     onTap: () => _nav('/home/medicines'),
                   ),
                   _DrawerItem(
+                    icon: Icons.favorite_border,
+                    label: 'Favourite Medicines',
+                    subtitle: 'Your saved medicine bookmarks',
+                    onTap: () => _nav('/home/medicines/favourites'),
+                  ),
+                  _DrawerItem(
                     icon: Icons.alarm_outlined,
                     label: 'Medication Reminders',
                     subtitle: 'Scheduled dose alerts',

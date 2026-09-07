@@ -18,6 +18,7 @@ import 'package:vitapulse_ai/features/prescriptions/presentation/prescription_re
 import 'package:vitapulse_ai/features/prescriptions/presentation/prescription_detail_screen.dart';
 import 'package:vitapulse_ai/features/medicines/presentation/medicine_search_screen.dart';
 import 'package:vitapulse_ai/features/medicines/presentation/medicine_detail_screen.dart';
+import 'package:vitapulse_ai/features/medicines/presentation/medicine_favourites_screen.dart';
 import 'package:vitapulse_ai/features/reminders/presentation/reminders_screen.dart';
 import 'package:vitapulse_ai/features/reminders/presentation/add_reminder_screen.dart';
 import 'package:vitapulse_ai/features/health_monitoring/presentation/health_monitoring_screen.dart';
@@ -153,6 +154,10 @@ final appRouter = GoRouter(
           ),
         ),
         GoRoute(path: 'medicines', builder: (_, __) => const MedicineSearchScreen()),
+        GoRoute(
+          path: 'medicines/favourites',
+          builder: (_, __) => const MedicineFavouritesScreen(),
+        ),
         GoRoute(
           path: 'medicines/:id',
           builder: (_, state) => MedicineDetailScreen(
