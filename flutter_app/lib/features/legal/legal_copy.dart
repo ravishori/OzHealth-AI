@@ -34,6 +34,13 @@ class LegalCopy {
       'Verify every medicine with a doctor or pharmacist before acting. '
       'Do not rely on OCR alone for medication decisions.';
 
+  /// Manual prescription entry — user-typed information only.
+  static const prescriptionManualBanner =
+      'You entered this prescription manually. HealthNest does not verify '
+      'authenticity, the doctor, pharmacy, TGA/PBS eligibility, or clinical '
+      'appropriateness. Confirm details with a doctor or pharmacist. '
+      'In an emergency call 000.';
+
   /// Symptom checker — not a diagnosis.
   static const symptomBanner =
       'This tool provides general guidance only — not a diagnosis. '
