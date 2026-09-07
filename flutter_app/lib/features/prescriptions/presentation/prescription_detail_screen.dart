@@ -335,13 +335,17 @@ class _PrescriptionDetailScreenState extends State<PrescriptionDetailScreen> {
 
   Widget _buildDuplicateWarnings(_PrescriptionDetail detail) {
     final dups = detail.duplicateWarnings;
-    if (dups == null || dups['safe'] == true) return const SizedBox.shrink();
+    if (dups == null) return const SizedBox.shrink();
+    // Catalogue-grounded envelope uses safe=true when no pairs.
+    if (dups['safe'] == true) return const SizedBox.shrink();
     final dupList = (dups['duplicates'] as List? ?? []);
     if (dupList.isEmpty) return const SizedBox.shrink();
 
     final hc = HealthcareColors.of(context);
+    final note = dups['note']?.toString();
 
     return Container(
+      key: const Key('prescription_duplicate_warnings'),
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -356,26 +360,56 @@ class _PrescriptionDetailScreenState extends State<PrescriptionDetailScreen> {
             children: [
               Icon(Icons.content_copy, color: hc.vitaWarning, size: 22),
               const SizedBox(width: 8),
-              Text(
-                'Duplicate Medicines Detected',
-                style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 15,
-                    color: hc.vitaWarning),
+              Expanded(
+                child: Text(
+                  'Possible duplicate medicines',
+                  style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                      color: hc.vitaWarning),
+                ),
               ),
             ],
           ),
           const SizedBox(height: 8),
-          ...dupList.map((d) => Padding(
-                padding: const EdgeInsets.only(bottom: 6),
-                child: Text(
-                  '• ${d['medicine_a']} & ${d['medicine_b']}: ${d['risk']}',
-                  style: const TextStyle(fontSize: 13),
-                ),
-              )),
+          Text(
+            note ??
+                'These medicines appear to share catalogue identity. '
+                    'This is not a diagnosis — confirm with a doctor or pharmacist.',
+            style: TextStyle(
+              fontSize: 12,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 8),
+          ...dupList.map((raw) {
+            final d = raw is Map ? Map<String, dynamic>.from(raw) : <String, dynamic>{};
+            final a = _medicineLabel(d['medicine_a']);
+            final b = _medicineLabel(d['medicine_b']);
+            final reason = (d['reason'] ?? d['risk'] ?? '').toString();
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Text(
+                reason.isEmpty
+                    ? '• $a & $b appear to match the same catalogue identity.'
+                    : '• $a & $b — $reason',
+                style: const TextStyle(fontSize: 13),
+              ),
+            );
+          }),
         ],
       ),
     );
+  }
+
+  String _medicineLabel(dynamic value) {
+    if (value == null) return 'Unknown medicine';
+    if (value is String) return value.isEmpty ? 'Unknown medicine' : value;
+    if (value is Map) {
+      final name = value['name']?.toString();
+      if (name != null && name.isNotEmpty) return name;
+    }
+    return value.toString();
   }
 
   Widget _buildBody() {

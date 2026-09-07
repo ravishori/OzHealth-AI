@@ -12,7 +12,8 @@ from app.models.user import User
 from app.models.prescription import Prescription
 from app.models.medical_record import MedicalRecord
 from app.utils.storage import save_file
-from app.services.ai_service import check_allergy_conflicts, detect_duplicate_medicines
+from app.services.ai_service import check_allergy_conflicts
+from app.services.medicine_safety_service import MedicineSafetyChecker
 from app.services.prescription_ocr_pipeline import (
     PrescriptionOcrPipeline,
     PrescriptionUploadError,
@@ -20,6 +21,111 @@ from app.services.prescription_ocr_pipeline import (
 )
 
 router = APIRouter(route_class=LoggedAPIRoute)
+
+_DUP_NOTE = (
+    "Possible duplicate medicines only — not a clinical diagnosis. "
+    "Confirm with a doctor or pharmacist before changing or stopping medicines."
+)
+
+
+def _catalog_medicine_ids(medicines: list) -> list[int]:
+    """Extract confirmed catalogue medicine_ids from stored/confirmed medicine rows."""
+    ids: list[int] = []
+    seen: set[int] = set()
+    for m in medicines:
+        if not isinstance(m, dict):
+            continue
+        raw = m.get("catalog_medicine_id") if m.get("catalog_medicine_id") is not None else m.get("medicine_id")
+        if raw is None or raw == "":
+            continue
+        try:
+            mid = int(raw)
+        except (TypeError, ValueError):
+            continue
+        if mid < 1 or mid in seen:
+            continue
+        seen.add(mid)
+        ids.append(mid)
+    return ids
+
+
+async def catalogue_duplicate_warnings(
+    db: AsyncSession,
+    medicines: list,
+) -> dict:
+    """
+    HN-MED-007 — catalogue-grounded possible-duplicate warnings.
+
+    Uses MedicineSafetyChecker catalogue identity only
+    (same medicine_id or same non-empty normalized canonical_key).
+    Does NOT call an LLM as the authoritative detector.
+    Does NOT treat same generic_name or shared ingredients as duplicates.
+    """
+    ids = _catalog_medicine_ids(medicines if isinstance(medicines, list) else [])
+    if len(ids) < 2:
+        return {
+            "safe": True,
+            "duplicates": [],
+            "summary": (
+                "Duplicate check needs at least two catalogue-matched medicines."
+            ),
+            "source": "database",
+            "available": False,
+            "note": _DUP_NOTE,
+        }
+    try:
+        result = await MedicineSafetyChecker(db).check(ids)
+    except (LookupError, ValueError):
+        return {
+            "safe": True,
+            "duplicates": [],
+            "summary": "Catalogue duplicate check unavailable for these medicines.",
+            "source": "database",
+            "available": False,
+            "note": _DUP_NOTE,
+        }
+
+    pairs = []
+    for d in result.get("duplicates") or []:
+        a = d.get("medicine_a") or {}
+        b = d.get("medicine_b") or {}
+        a_name = a.get("name") if isinstance(a, dict) else str(a)
+        b_name = b.get("name") if isinstance(b, dict) else str(b)
+        a_id = a.get("medicine_id") if isinstance(a, dict) else None
+        b_id = b.get("medicine_id") if isinstance(b, dict) else None
+        reason = (d.get("reason") or "").strip() or (
+            "These medicines appear to have the same catalogue identity."
+        )
+        pairs.append(
+            {
+                "medicine_a": a_name,
+                "medicine_b": b_name,
+                "medicine_a_id": a_id,
+                "medicine_b_id": b_id,
+                "reason": reason,
+                # Compatibility with existing Flutter detail widget field name.
+                "risk": reason,
+                "recommendation": (
+                    "Ask a doctor or pharmacist to confirm whether these "
+                    "are intended duplicates. Do not stop or change medicines "
+                    "based on this warning alone."
+                ),
+                "source": "database",
+                "status": "DUPLICATE",
+            }
+        )
+    return {
+        "safe": len(pairs) == 0,
+        "duplicates": pairs,
+        "summary": (
+            f"{len(pairs)} possible duplicate pair(s) from catalogue identity."
+            if pairs
+            else "No catalogue duplicate pairs detected."
+        ),
+        "source": "database",
+        "available": True,
+        "note": _DUP_NOTE,
+    }
 
 
 @router.post("/ocr")
@@ -158,9 +264,8 @@ async def confirm_prescription(
         except Exception:
             pass
 
-    duplicate_check = None
-    if len(medicine_names) >= 2:
-        duplicate_check = await detect_duplicate_medicines(medicine_names)
+    # HN-MED-007 — catalogue-grounded duplicates (not AI-as-authority).
+    duplicate_check = await catalogue_duplicate_warnings(db, sanitized)
 
     return {
         "id": prescription.id,
@@ -264,7 +369,11 @@ async def get_prescription(
     p = result.scalar_one_or_none()
     if not p:
         raise HTTPException(status_code=404, detail="Prescription not found")
-    return _to_dict(p)
+    data = _to_dict(p)
+    # HN-MED-007 — recompute on read so detail UI can surface warnings.
+    meds = data.get("medicines") if isinstance(data.get("medicines"), list) else []
+    data["duplicate_warnings"] = await catalogue_duplicate_warnings(db, meds)
+    return data
 
 
 def _to_dict(p: Prescription) -> dict:

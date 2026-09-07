@@ -1,8 +1,13 @@
 """
 Minimum medicine safety checker — database facts only.
 
-Detects duplicates, allergy/ingredient conflicts, and medicine–medicine
-interactions WITHOUT inventing clinical knowledge or using an LLM.
+Detects catalogue-identity duplicates (medicine_id / canonical_key only),
+allergy/ingredient conflicts, and medicine–medicine interactions WITHOUT
+inventing clinical knowledge or using an LLM.
+
+Duplicate detection is catalogue-grounded (HN-MED-007): same medicine_id or
+same non-empty normalized canonical_key. Shared ingredients or same
+generic_name alone are NOT catalogue duplicates.
 
 Interactions:
   1) structured public.interactions rows (preferred)
@@ -198,48 +203,26 @@ class MedicineSafetyChecker:
         return out
 
     def _duplicates(self, meds: list[MedBundle]) -> list[dict[str, Any]]:
+        """
+        Catalogue-identity duplicate detection (HN-MED-007).
+
+        A pair is DUPLICATE only when catalogue identity establishes sameness:
+          1) same medicine_id, OR
+          2) same non-empty normalized canonical_key
+
+        Same generic_name alone, shared ingredients alone, or overlapping
+        therapeutic effect are NOT catalogue duplicates. Ingredient overlap
+        remains the concern of allergy/interaction checks, not this method.
+        """
         results: list[dict[str, Any]] = []
         for a, b in combinations(meds, 2):
             reasons: list[str] = []
             if a.id == b.id:
                 reasons.append("same medicine_id")
-            if (
-                a.canonical_key
-                and b.canonical_key
-                and _norm(a.canonical_key) == _norm(b.canonical_key)
-            ):
+            ka = _norm(a.canonical_key)
+            kb = _norm(b.canonical_key)
+            if ka and kb and ka == kb:
                 reasons.append(f"same canonical_key ({a.canonical_key})")
-
-            a_ings = {_norm(x) for x in a.ingredient_names}
-            b_ings = {_norm(x) for x in b.ingredient_names}
-            shared = sorted(a_ings & b_ings)
-            # Also treat containment / primary-token overlap as shared actives
-            if not shared:
-                soft: set[str] = set()
-                for ai in a_ings:
-                    for bi in b_ings:
-                        if len(ai) >= 4 and len(bi) >= 4 and (ai in bi or bi in ai):
-                            soft.add(ai if len(ai) <= len(bi) else bi)
-                        at, bt = _tokens(ai), _tokens(bi)
-                        inter = {t for t in (at & bt) if len(t) >= 4}
-                        soft |= inter
-                shared = sorted(soft)
-            shared = [s for s in shared if len(s) >= 4]
-            if shared:
-                reasons.append(
-                    "shared active ingredient(s): " + ", ".join(shared)
-                )
-
-            # Same normalized generic when both present and equal
-            if (
-                a.generic_name
-                and b.generic_name
-                and _norm(a.generic_name) == _norm(b.generic_name)
-                and len(_norm(a.generic_name)) >= 4
-            ):
-                g = _norm(a.generic_name)
-                if not any(g in r for r in reasons):
-                    reasons.append(f"same generic_name ({a.generic_name})")
 
             if not reasons:
                 continue
