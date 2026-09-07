@@ -14,11 +14,11 @@ abstract final class AppSpacing {
   static const double x12 = 48.0;
   static const double x16 = 64.0;
 
-  // Semantic aliases
-  static const double screenHorizontal = x5;   // 20
+  // Semantic aliases — strict 8px grid (multiples of 8 preferred)
+  static const double screenHorizontal = x4;   // 16
   static const double cardPadding      = x4;   // 16
   static const double sectionGap       = x6;   // 24
-  static const double itemGap          = x3;   // 12
+  static const double itemGap          = x4;   // 16
   static const double inlineGap        = x2;   // 8
   static const double touchTarget      = x12;  // 48
   static const double iconSm           = 18.0;

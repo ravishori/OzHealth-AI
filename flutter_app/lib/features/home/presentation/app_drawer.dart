@@ -134,7 +134,7 @@ class _AppDrawerState extends State<AppDrawer> {
                     onTap: () => _navReplace('/home'),
                   ),
 
-                  const _SectionHeader('📋  Prescriptions & Records'),
+                  const _SectionHeader('Prescriptions & Records'),
                   _DrawerItem(
                     icon: Icons.document_scanner_outlined,
                     label: 'Scan Prescription (OCR)',
@@ -155,7 +155,7 @@ class _AppDrawerState extends State<AppDrawer> {
                     onTap: () => _nav('/home/records'),
                   ),
 
-                  const _SectionHeader('💊  Medicines & Reminders'),
+                  const _SectionHeader('Medicines & Reminders'),
                   _DrawerItem(
                     icon: Icons.medication_outlined,
                     label: 'Medicine Search',
@@ -177,7 +177,7 @@ class _AppDrawerState extends State<AppDrawer> {
                     badge: 'AI',
                   ),
 
-                  const _SectionHeader('❤️  Health Monitoring'),
+                  const _SectionHeader('Health Monitoring'),
                   _DrawerItem(
                     icon: Icons.monitor_heart_outlined,
                     label: 'Health Monitor',
@@ -193,7 +193,7 @@ class _AppDrawerState extends State<AppDrawer> {
                     badge: 'AI',
                   ),
 
-                  const _SectionHeader('🤖  AI Diagnostic Tools'),
+                  const _SectionHeader('AI Diagnostic Tools'),
                   _DrawerItem(
                     icon: Icons.psychology_outlined,
                     label: 'AI Health Assistant',
@@ -219,7 +219,7 @@ class _AppDrawerState extends State<AppDrawer> {
                     badge: 'AI',
                   ),
 
-                  const _SectionHeader('👨‍👩‍👦  Family & Safety'),
+                  const _SectionHeader('Family & Safety'),
                   _DrawerItem(
                     icon: Icons.family_restroom_outlined,
                     label: 'Family Health Profiles',
@@ -241,7 +241,7 @@ class _AppDrawerState extends State<AppDrawer> {
                     badge: 'SOS',
                   ),
 
-                  const _SectionHeader('⚙️  Account'),
+                  const _SectionHeader('Account'),
                   _DrawerItem(
                     icon: Icons.person_outline,
                     label: 'My Profile',
