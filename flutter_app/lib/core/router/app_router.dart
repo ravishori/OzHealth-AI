@@ -172,9 +172,24 @@ final appRouter = GoRouter(
               );
             }
             final map = Map<String, dynamic>.from(extra);
+            int? familyMemberId;
+            final rawId = map['familyMemberId'];
+            if (rawId is int) {
+              familyMemberId = rawId;
+            } else if (rawId is num) {
+              familyMemberId = rawId.toInt();
+            }
+            final rawMembers = map['familyMembers'];
+            final familyMembers = rawMembers is List
+                ? List<Map<String, dynamic>>.from(
+                    rawMembers.map((e) => Map<String, dynamic>.from(e as Map)),
+                  )
+                : <Map<String, dynamic>>[];
             return PrescriptionReviewScreen(
               filePath: map['filePath']?.toString() ?? '',
               ocrResult: Map<String, dynamic>.from(map['ocrResult'] as Map? ?? {}),
+              initialFamilyMemberId: familyMemberId,
+              familyMembers: familyMembers,
             );
           },
         ),

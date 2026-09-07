@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:go_router/go_router.dart';
 import 'package:vitapulse_ai/core/network/api_client.dart';
+import 'package:vitapulse_ai/features/prescriptions/presentation/prescription_review_screen.dart';
 import 'package:vitapulse_ai/theme/design_tokens/app_radius.dart';
 import 'package:vitapulse_ai/theme/theme_extensions.dart';
 
@@ -21,6 +22,38 @@ class _PrescriptionScanScreenState extends State<PrescriptionScanScreen> {
   File? _pickedFile;
   _ScanState _scanState = _ScanState.idle;
   final ImagePicker _picker = ImagePicker();
+  List<Map<String, dynamic>> _familyMembers = const [];
+  int? _selectedFamilyMemberId;
+  bool _loadingFamily = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadFamilyMembers();
+  }
+
+  Future<void> _loadFamilyMembers() async {
+    try {
+      final resp = await ApiClient.get('/family/');
+      if (!mounted) return;
+      final raw = resp.data is List ? resp.data : (resp.data['members'] ?? []);
+      final members = List<Map<String, dynamic>>.from(
+        (raw as List).map((e) => Map<String, dynamic>.from(e as Map)),
+      );
+      setState(() {
+        _familyMembers = members;
+        _loadingFamily = false;
+        // Default Self; keep owned selection only if still valid.
+        _selectedFamilyMemberId = ownedPrescriptionFamilySelection(
+          requestedId: _selectedFamilyMemberId,
+          ownedMembers: members,
+        );
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _loadingFamily = false);
+    }
+  }
 
   Future<void> _pickImage(ImageSource source) async {
     try {
@@ -79,6 +112,8 @@ class _PrescriptionScanScreenState extends State<PrescriptionScanScreen> {
         extra: {
           'filePath': file.path,
           'ocrResult': data,
+          'familyMemberId': _selectedFamilyMemberId,
+          'familyMembers': _familyMembers,
         },
       );
       setState(() => _scanState = _ScanState.idle);
@@ -295,6 +330,53 @@ class _PrescriptionScanScreenState extends State<PrescriptionScanScreen> {
     );
   }
 
+  Widget _buildSubjectSelector() {
+    final cs = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Who is this prescription for?',
+            style: Theme.of(context).textTheme.titleSmall),
+        const SizedBox(height: 8),
+        _loadingFamily
+            ? const LinearProgressIndicator(minHeight: 2)
+            : Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                decoration: BoxDecoration(
+                  border: Border.all(color: cs.outline),
+                  borderRadius: AppRadius.brMd,
+                ),
+                child: DropdownButton<int?>(
+                  key: const Key('prescription_scan_family_selector'),
+                  value: _selectedFamilyMemberId,
+                  isExpanded: true,
+                  underline: const SizedBox(),
+                  items: [
+                    const DropdownMenuItem<int?>(
+                      value: null,
+                      child: Text('Myself'),
+                    ),
+                    ..._familyMembers
+                        .where((m) => m['id'] is int || m['id'] is num)
+                        .map(
+                      (m) => DropdownMenuItem<int?>(
+                        value: m['id'] is int
+                            ? m['id'] as int
+                            : (m['id'] as num).toInt(),
+                        child: Text(m['name']?.toString() ?? 'Family member'),
+                      ),
+                    ),
+                  ],
+                  onChanged: _isProcessing
+                      ? null
+                      : (v) => setState(() => _selectedFamilyMemberId = v),
+                ),
+              ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -310,6 +392,8 @@ class _PrescriptionScanScreenState extends State<PrescriptionScanScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            _buildSubjectSelector(),
+            const SizedBox(height: 16),
             if (_pickedFile == null) _buildSourceButtons(),
             if (_pickedFile != null) _buildImagePreview(),
             const SizedBox(height: 24),

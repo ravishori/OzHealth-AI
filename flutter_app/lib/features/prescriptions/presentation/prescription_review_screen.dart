@@ -7,6 +7,23 @@ import 'package:go_router/go_router.dart';
 import 'package:vitapulse_ai/core/network/api_client.dart';
 import 'package:vitapulse_ai/features/prescriptions/data/ocr_confidence.dart';
 import 'package:vitapulse_ai/shared/widgets/clinical_safety_banner.dart';
+import 'package:vitapulse_ai/theme/design_tokens/app_radius.dart';
+
+/// Returns [requestedId] only when it appears among owned members (HN-RX-004).
+int? ownedPrescriptionFamilySelection({
+  required int? requestedId,
+  required List<Map<String, dynamic>> ownedMembers,
+}) {
+  if (requestedId == null) return null;
+  for (final m in ownedMembers) {
+    final active = m['is_active'];
+    if (active == false || active == 0 || active == 'false') continue;
+    final raw = m['id'];
+    if (raw == requestedId) return requestedId;
+    if (raw is num && raw.toInt() == requestedId) return requestedId;
+  }
+  return null;
+}
 
 /// Review OCR + catalogue matches before saving a prescription.
 class PrescriptionReviewScreen extends StatefulWidget {
@@ -14,10 +31,14 @@ class PrescriptionReviewScreen extends StatefulWidget {
     super.key,
     required this.filePath,
     required this.ocrResult,
+    this.initialFamilyMemberId,
+    this.familyMembers = const [],
   });
 
   final String filePath;
   final Map<String, dynamic> ocrResult;
+  final int? initialFamilyMemberId;
+  final List<Map<String, dynamic>> familyMembers;
 
   @override
   State<PrescriptionReviewScreen> createState() =>
@@ -65,6 +86,8 @@ class _EditableMedicine {
 class _PrescriptionReviewScreenState extends State<PrescriptionReviewScreen> {
   late final List<_EditableMedicine> _medicines;
   late final TextEditingController _doctorCtrl;
+  late final List<Map<String, dynamic>> _familyMembers;
+  late int? _selectedFamilyMemberId;
   bool _saving = false;
   double? _ocrConfidence;
   bool _ocrLowConfidence = true;
@@ -80,6 +103,11 @@ class _PrescriptionReviewScreenState extends State<PrescriptionReviewScreen> {
   @override
   void initState() {
     super.initState();
+    _familyMembers = List<Map<String, dynamic>>.from(widget.familyMembers);
+    _selectedFamilyMemberId = ownedPrescriptionFamilySelection(
+      requestedId: widget.initialFamilyMemberId,
+      ownedMembers: _familyMembers,
+    );
     final ocr = widget.ocrResult['ocr'];
     final summary = widget.ocrResult['summary'];
     if (ocr is Map) {
@@ -226,6 +254,8 @@ class _PrescriptionReviewScreenState extends State<PrescriptionReviewScreen> {
         'raw_ocr_text': widget.ocrResult['ocr'] is Map
             ? (widget.ocrResult['ocr']['text']?.toString() ?? '')
             : '',
+        if (_selectedFamilyMemberId != null)
+          'family_member_id': _selectedFamilyMemberId,
       });
       final resp = await ApiClient.uploadFile('/prescriptions/confirm', form);
       final data = resp.data as Map<String, dynamic>;
@@ -278,6 +308,63 @@ class _PrescriptionReviewScreenState extends State<PrescriptionReviewScreen> {
       med.matchStatus = 'UNMATCHED';
       med.needsReview = true;
     });
+  }
+
+  String get _subjectLabel {
+    if (_selectedFamilyMemberId == null) return 'Myself';
+    for (final m in _familyMembers) {
+      if (m['id'] == _selectedFamilyMemberId) {
+        return m['name']?.toString() ?? 'Family member';
+      }
+    }
+    return 'Family member';
+  }
+
+  Widget _buildSubjectSelector(ColorScheme cs) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Logged for', style: Theme.of(context).textTheme.titleSmall),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+          decoration: BoxDecoration(
+            border: Border.all(color: cs.outline),
+            borderRadius: AppRadius.brMd,
+          ),
+          child: DropdownButton<int?>(
+            key: const Key('prescription_family_selector'),
+            value: _selectedFamilyMemberId,
+            isExpanded: true,
+            underline: const SizedBox(),
+            items: [
+              const DropdownMenuItem<int?>(
+                value: null,
+                child: Text('Myself'),
+              ),
+              ..._familyMembers
+                  .where((m) => m['id'] is int || m['id'] is num)
+                  .map(
+                (m) => DropdownMenuItem<int?>(
+                  value: m['id'] is int
+                      ? m['id'] as int
+                      : (m['id'] as num).toInt(),
+                  child: Text(m['name']?.toString() ?? 'Family member'),
+                ),
+              ),
+            ],
+            onChanged: _saving
+                ? null
+                : (v) => setState(() => _selectedFamilyMemberId = v),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'This prescription will be saved for $_subjectLabel.',
+          style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+        ),
+      ],
+    );
   }
 
   @override
@@ -347,6 +434,8 @@ class _PrescriptionReviewScreenState extends State<PrescriptionReviewScreen> {
               border: OutlineInputBorder(),
             ),
           ),
+          const SizedBox(height: 16),
+          _buildSubjectSelector(cs),
           const SizedBox(height: 16),
           Text('Medicines', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
