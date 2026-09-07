@@ -26,4 +26,37 @@ class MedicineApi {
     final resp = await ApiClient.get('/medicines/ai-info/$encodedName');
     return resp.data as Map<String, dynamic>;
   }
+
+  /// HN-MED-009 — whether the current user favourited this catalogue medicine.
+  /// Bookmark only — not a prescription or clinical recommendation.
+  static Future<bool> getFavouriteStatus(int medicineId) async {
+    final resp = await ApiClient.get('/medicines/$medicineId/favourite');
+    final data = resp.data as Map<String, dynamic>;
+    return data['is_favourite'] == true;
+  }
+
+  /// HN-MED-009 — add favourite (idempotent). Returns is_favourite.
+  static Future<bool> addFavourite(int medicineId) async {
+    final resp = await ApiClient.post('/medicines/$medicineId/favourite');
+    final data = resp.data as Map<String, dynamic>;
+    return data['is_favourite'] == true;
+  }
+
+  /// HN-MED-009 — remove favourite (idempotent). Returns is_favourite (false).
+  static Future<bool> removeFavourite(int medicineId) async {
+    final resp = await ApiClient.delete('/medicines/$medicineId/favourite');
+    final data = resp.data as Map<String, dynamic>;
+    return data['is_favourite'] == true;
+  }
+
+  /// HN-MED-009 — list current user's favourite medicines (auth-scoped).
+  static Future<List<Map<String, dynamic>>> listFavourites() async {
+    final resp = await ApiClient.get('/medicines/favourites');
+    final data = resp.data as Map<String, dynamic>;
+    final raw = data['favourites'];
+    if (raw is! List) return [];
+    return raw
+        .map((e) => Map<String, dynamic>.from(e as Map))
+        .toList(growable: false);
+  }
 }

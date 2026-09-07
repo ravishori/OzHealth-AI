@@ -13,14 +13,33 @@ const String kDbProvenanceLabel = 'From medicine database';
 const String kAiProvenanceLabel = 'AI-generated explanation';
 const String kUnavailableLabel = 'Information not available';
 
+typedef MedicineDetailLoader = Future<Map<String, dynamic>> Function(int id);
+typedef MedicineExplanationLoader =
+    Future<Map<String, dynamic>?> Function(int id);
+typedef MedicineFavouriteStatusLoader = Future<bool> Function(int id);
+typedef MedicineFavouriteSetter = Future<bool> Function(
+  int id, {
+  required bool favourite,
+});
+
 class MedicineDetailScreen extends StatefulWidget {
   final String                 medicineId;
   final Map<String, dynamic>?  extra;
+
+  /// Optional injectors for tests (HN-MED-009). Production uses [MedicineApi].
+  final MedicineDetailLoader? loadMedicine;
+  final MedicineExplanationLoader? loadExplanation;
+  final MedicineFavouriteStatusLoader? loadFavouriteStatus;
+  final MedicineFavouriteSetter? setFavourite;
 
   const MedicineDetailScreen({
     super.key,
     required this.medicineId,
     this.extra,
+    this.loadMedicine,
+    this.loadExplanation,
+    this.loadFavouriteStatus,
+    this.setFavourite,
   });
 
   @override
@@ -37,6 +56,11 @@ class _MedicineDetailScreenState extends State<MedicineDetailScreen> {
   bool   _loadingAllergyCheck  = false;
   Map<String, dynamic>? _alternatives;
   Map<String, dynamic>? _allergyCheck;
+
+  // HN-MED-009 — favourite bookmark (not a prescription / recommendation)
+  bool _isFavourite = false;
+  bool _favouriteKnown = false;
+  bool _favouriteBusy = false;
 
   @override
   void initState() {
@@ -73,10 +97,13 @@ class _MedicineDetailScreenState extends State<MedicineDetailScreen> {
       return;
     }
     try {
-      final data = await MedicineApi.getMedicine(id);
+      final loader = widget.loadMedicine ?? MedicineApi.getMedicine;
+      final data = await loader(id);
       Map<String, dynamic>? explanation;
       try {
-        explanation = await MedicineApi.getExplanation(id);
+        final explLoader =
+            widget.loadExplanation ?? MedicineApi.getExplanation;
+        explanation = await explLoader(id);
       } catch (_) {
         // Optional AI rephrase — structured DB fields remain authoritative.
         explanation = null;
@@ -87,12 +114,75 @@ class _MedicineDetailScreenState extends State<MedicineDetailScreen> {
         _explanation = explanation;
         _loading = false;
       });
+      // Favourite status is independent of clinical detail load.
+      await _loadFavouriteStatus(id);
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _error = ErrorHandler.getMessage(e);
         _loading = false;
       });
+    }
+  }
+
+  Future<void> _loadFavouriteStatus(int id) async {
+    try {
+      final loader =
+          widget.loadFavouriteStatus ?? MedicineApi.getFavouriteStatus;
+      final isFav = await loader(id);
+      if (!mounted) return;
+      setState(() {
+        _isFavourite = isFav;
+        _favouriteKnown = true;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _favouriteKnown = true;
+      });
+    }
+  }
+
+  Future<void> _toggleFavourite() async {
+    if (_favouriteBusy) return;
+    final id = int.tryParse(widget.medicineId);
+    if (id == null) return;
+
+    final makeFavourite = !_isFavourite;
+    setState(() {
+      _favouriteBusy = true;
+    });
+    try {
+      final setter = widget.setFavourite ??
+          (int medicineId, {required bool favourite}) async {
+        if (favourite) {
+          return MedicineApi.addFavourite(medicineId);
+        }
+        return MedicineApi.removeFavourite(medicineId);
+      };
+      final result = await setter(id, favourite: makeFavourite);
+      if (!mounted) return;
+      setState(() {
+        _isFavourite = result;
+        _favouriteBusy = false;
+        _favouriteKnown = true;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            result
+                ? 'Saved to favourites (bookmark only — not a prescription)'
+                : 'Removed from favourites',
+          ),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _favouriteBusy = false;
+      });
+      ErrorHandler.show(context, e);
     }
   }
 
@@ -197,12 +287,14 @@ class _MedicineDetailScreenState extends State<MedicineDetailScreen> {
           },
         ),
         actions: [
-          if (!_loading && _medicine != null)
+          if (!_loading && _medicine != null) ...[
+            _buildFavouriteAction(),
             IconButton(
               icon: const Icon(Icons.refresh),
               tooltip: 'Refresh',
               onPressed: _loadById,
             ),
+          ],
         ],
       ),
       body: _loading
@@ -213,6 +305,40 @@ class _MedicineDetailScreenState extends State<MedicineDetailScreen> {
       bottomNavigationBar: (!_loading && _medicine != null)
           ? _buildBottomBar()
           : null,
+    );
+  }
+
+  Widget _buildFavouriteAction() {
+    if (!_favouriteKnown && !_favouriteBusy) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 12),
+        child: SizedBox(
+          width: 24,
+          height: 24,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+      );
+    }
+    final tooltip = _favouriteBusy
+        ? 'Updating favourite…'
+        : (_isFavourite ? 'Remove from favourites' : 'Add to favourites');
+    return IconButton(
+      key: const Key('medicine_favourite_toggle'),
+      tooltip: tooltip,
+      onPressed: _favouriteBusy ? null : _toggleFavourite,
+      icon: _favouriteBusy
+          ? const SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : Icon(
+              _isFavourite ? Icons.favorite : Icons.favorite_border,
+              color: _isFavourite
+                  ? Theme.of(context).colorScheme.error
+                  : null,
+              semanticLabel: _isFavourite ? 'Favourited' : 'Not favourited',
+            ),
     );
   }
 

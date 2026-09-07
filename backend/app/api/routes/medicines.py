@@ -7,8 +7,10 @@ from typing import Any, Optional
 
 from app.core.database import get_db
 from app.core.deps import get_current_user
+from app.core.logging_config import audit_log
 from app.models.user import User
 from app.models.medicine import Medicine
+from app.models.medicine_favourite import MedicineFavourite
 from app.services.ai_service import get_medicine_alternatives, check_allergy_conflicts
 from app.services.cache_service import CacheService, MEDICINE_DETAIL_TTL
 from app.services.catalog_medicine_search_service import (
@@ -89,6 +91,178 @@ async def medicine_safety_check(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+def _favourite_medicine_summary(medicine: Medicine) -> dict[str, Any]:
+    """Minimal catalogue fields for favourites list (not clinical advice)."""
+    return {
+        "id": medicine.id,
+        "name": medicine.name,
+        "generic_name": medicine.generic_name,
+        "brand_name": medicine.brand_name,
+        "strength": medicine.strength,
+        "dosage_form": medicine.dosage_form,
+        "tga_artg_number": medicine.tga_artg_number,
+        "schedule": medicine.schedule,
+    }
+
+
+async def _require_catalog_medicine(
+    db: AsyncSession, medicine_id: int
+) -> Medicine:
+    if medicine_id < 1:
+        raise HTTPException(status_code=400, detail="Invalid medicine_id")
+    result = await db.execute(select(Medicine).where(Medicine.id == medicine_id))
+    medicine = result.scalar_one_or_none()
+    if not medicine:
+        raise HTTPException(status_code=404, detail="Medicine not found")
+    return medicine
+
+
+@router.get("/favourites")
+async def list_medicine_favourites(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    HN-MED-009 — list the authenticated user's favourite medicines.
+
+    Bookmark only — not a prescription, TGA/PBS check, or clinical recommendation.
+    Owner is always derived from the auth principal (never from client body).
+    """
+    result = await db.execute(
+        select(MedicineFavourite, Medicine)
+        .join(Medicine, Medicine.id == MedicineFavourite.medicine_id)
+        .where(MedicineFavourite.user_id == current_user.id)
+        .order_by(MedicineFavourite.created_at.desc())
+    )
+    rows = result.all()
+    items = []
+    for fav, med in rows:
+        items.append(
+            {
+                **_favourite_medicine_summary(med),
+                "favourited_at": fav.created_at.isoformat()
+                if fav.created_at is not None
+                else None,
+            }
+        )
+    audit_log.info(
+        "medicine_favourites_listed",
+        extra={"user_id": current_user.id, "count": len(items)},
+    )
+    return {
+        "favourites": items,
+        "count": len(items),
+        "note": (
+            "User-saved medicine bookmarks only. "
+            "Not a prescription, medication schedule, or clinical recommendation."
+        ),
+    }
+
+
+@router.get("/{medicine_id}/favourite")
+async def get_medicine_favourite_status(
+    medicine_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """HN-MED-009 — whether the current user has favourited this medicine."""
+    await _require_catalog_medicine(db, medicine_id)
+    result = await db.execute(
+        select(MedicineFavourite.id).where(
+            MedicineFavourite.user_id == current_user.id,
+            MedicineFavourite.medicine_id == medicine_id,
+        )
+    )
+    is_fav = result.scalar_one_or_none() is not None
+    return {
+        "medicine_id": medicine_id,
+        "is_favourite": is_fav,
+    }
+
+
+@router.post("/{medicine_id}/favourite")
+async def add_medicine_favourite(
+    medicine_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    HN-MED-009 — favourite a catalogue medicine for the authenticated user.
+
+    Idempotent: repeating POST does not create duplicate rows.
+    """
+    await _require_catalog_medicine(db, medicine_id)
+    existing = await db.execute(
+        select(MedicineFavourite).where(
+            MedicineFavourite.user_id == current_user.id,
+            MedicineFavourite.medicine_id == medicine_id,
+        )
+    )
+    fav = existing.scalar_one_or_none()
+    created = False
+    if fav is None:
+        fav = MedicineFavourite(
+            user_id=current_user.id,
+            medicine_id=medicine_id,
+        )
+        db.add(fav)
+        await db.commit()
+        await db.refresh(fav)
+        created = True
+        audit_log.info(
+            "medicine_favourite_added",
+            extra={
+                "user_id": current_user.id,
+                "medicine_id": medicine_id,
+                "favourite_id": fav.id,
+            },
+        )
+    return {
+        "medicine_id": medicine_id,
+        "is_favourite": True,
+        "created": created,
+        "favourite_id": fav.id,
+    }
+
+
+@router.delete("/{medicine_id}/favourite")
+async def remove_medicine_favourite(
+    medicine_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    HN-MED-009 — remove favourite for the authenticated user only.
+
+    Idempotent: deleting a non-favourite returns is_favourite=false safely.
+    Never deletes another user's row (scoped by current_user.id).
+    """
+    if medicine_id < 1:
+        raise HTTPException(status_code=400, detail="Invalid medicine_id")
+    # Medicine may have been removed from catalogue; still allow unfavourite by id.
+    result = await db.execute(
+        select(MedicineFavourite).where(
+            MedicineFavourite.user_id == current_user.id,
+            MedicineFavourite.medicine_id == medicine_id,
+        )
+    )
+    fav = result.scalar_one_or_none()
+    removed = False
+    if fav is not None:
+        await db.delete(fav)
+        await db.commit()
+        removed = True
+        audit_log.info(
+            "medicine_favourite_removed",
+            extra={"user_id": current_user.id, "medicine_id": medicine_id},
+        )
+    return {
+        "medicine_id": medicine_id,
+        "is_favourite": False,
+        "removed": removed,
+    }
 
 
 @router.get("/barcode/{barcode}")

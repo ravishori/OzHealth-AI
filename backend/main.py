@@ -37,6 +37,7 @@ from app.api.routes import enrichment    as enrichment_route
 from app.models import medicine_search_cache    as _medicine_cache_model     # noqa: F401
 from app.models import medicine_enrichment_log  as _medicine_enrichment_log  # noqa: F401
 from app.models.error_log import ErrorLog as _error_log_model                # noqa: F401
+from app.models.medicine_favourite import MedicineFavourite as _medicine_favourite_model  # noqa: F401
 
 # Backward-compatible aliases (used by auth.py inline import — kept for safety)
 _send_alert_email = send_alert_email
