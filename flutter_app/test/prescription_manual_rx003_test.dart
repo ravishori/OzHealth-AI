@@ -87,6 +87,32 @@ void main() {
     expect(apiSrc.contains('family_member_id'), isTrue);
   });
 
+  test('RX-MANUAL-FE-10 Self omits family_member_id; owned id submitted', () {
+    // API only includes family_member_id when non-null (Self → omit/NULL).
+    expect(apiSrc.contains('if (familyMemberId != null)'), isTrue);
+    expect(
+      apiSrc.contains("'family_member_id': familyMemberId"),
+      isTrue,
+    );
+    expect(entrySrc.contains('_selectedFamilyMemberId'), isTrue);
+    expect(reviewSrc.contains('familyMemberId: widget.familyMemberId'), isTrue);
+  });
+
+  test('RX-MANUAL-FE-11 required validation and double-submit guard', () {
+    expect(entrySrc.contains('_formKey.currentState!.validate()'), isTrue);
+    expect(entrySrc.contains('Enter at least one medicine name.'), isTrue);
+    expect(entrySrc.contains("validator: (v)"), isTrue);
+    expect(reviewSrc.contains('onPressed: _saving ? null : _confirm'), isTrue);
+    expect(reviewSrc.contains('setState(() => _saving = true)'), isTrue);
+  });
+
+  test('RX-MANUAL-FE-12 API failure handled safely without OCR confirm', () {
+    expect(reviewSrc.contains('on DioException catch'), isTrue);
+    expect(reviewSrc.contains('Could not save prescription.'), isTrue);
+    expect(reviewSrc.contains('Text(e.toString())'), isFalse);
+    expect(reviewSrc.contains('/prescriptions/confirm'), isFalse);
+  });
+
   test('RX-MANUAL-FE-08 safety banner non-clinical', () {
     expect(entrySrc.contains('ClinicalDisclaimerKind.prescriptionManual'), isTrue);
     expect(reviewSrc.contains('ClinicalDisclaimerKind.prescriptionManual'), isTrue);
