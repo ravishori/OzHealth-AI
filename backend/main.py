@@ -250,9 +250,23 @@ app.include_router(enrichment_route.router,     prefix=f"{PREFIX}/enrichment",  
 
 @app.on_event("startup")
 async def on_startup():
-    # Auto-create tables (idempotent — safe to run every startup)
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    # Fail fast on hosted misconfiguration (never logs secret values).
+    settings.validate_for_startup()
+
+    # Schema source of truth is Alembic. create_all is local/dev only —
+    # never a migration fallback for staging/production.
+    if settings.should_auto_create_tables():
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        logger.info(
+            "AUTO_CREATE_TABLES enabled for ENVIRONMENT=%s (dev/test only)",
+            settings.environment_name(),
+        )
+    else:
+        logger.info(
+            "Skipping metadata.create_all (ENVIRONMENT=%s); schema must come from Alembic",
+            settings.environment_name(),
+        )
 
     # Start background reminder scheduler
     from app.services.reminder_worker import start_scheduler
@@ -288,8 +302,7 @@ async def on_startup():
     from app.workers.cache_refresh_worker import start_scheduler as start_cache_worker
     app.state.cache_worker = start_cache_worker()
 
-    logger.info("%s v%s started", settings.APP_NAME, settings.APP_VERSION)
-    logger.info("API docs: http://localhost:8000/docs")
+    logger.info("%s v%s started env=%s", settings.APP_NAME, settings.APP_VERSION, settings.environment_name())
     audit_log.info("app_startup", extra={"version": settings.APP_VERSION})
 
 
@@ -323,9 +336,31 @@ async def root():
 
 @app.get("/health", tags=["Meta"])
 async def health():
-    """Liveness probe — returns 200 when the app is running."""
-    return {"status": "healthy"}
+    """
+    Readiness/liveness for staging/production probes.
+    200 only when the process is up AND the database accepts a trivial query.
+    Response contains safe metadata only — never secrets, URLs, PHI, or traces.
+    """
+    from sqlalchemy import text
 
+    try:
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+    except Exception:
+        # Do not include exception text — drivers may echo connection details.
+        logger.warning("health_check_database_unavailable")
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "unhealthy",
+                "version": settings.APP_VERSION,
+            },
+        )
+
+    return {
+        "status": "healthy",
+        "version": settings.APP_VERSION,
+    }
 
 @app.get(f"{PREFIX}/admin/stats", tags=["Admin"])
 async def admin_stats(current_user: User = Depends(get_current_user)):

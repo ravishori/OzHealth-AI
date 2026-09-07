@@ -39,12 +39,12 @@ These counts represent the **original audit** categories (unchanged).
 ### Development status (post Sprint 2)
 
 Total: 204
-🟢 COMPLETED: 100
+🟢 COMPLETED: 133
 🔵 IN PROGRESS: 0
-🟡 UNDER DEVELOPMENT: 58
-🔴 NEEDS FIX: 6
+🟡 UNDER DEVELOPMENT: 34
+🔴 NEEDS FIX: 3
 ⚫ MOCK/DEMO: 3
-🟠 PENDING: 29
+🟠 PENDING: 23
 ⚪ DEFERRED: 5
 ⚪ NOT REQUIRED: 3
 
@@ -90,19 +90,19 @@ NOT REQUIRED
 ### Wave 1 — Core Functionality
 
 Rows in wave: 151
-Completed: 66
-In Development: 49
-Pending: 19
-Needs Fix: 14
-Mock/Demo: 1
-Deferred: 0
+Completed: 116
+In Development: 20
+Pending: 9
+Needs Fix: 3
+Mock/Demo: 0
+Deferred: 1
 Not Required: 2
 
 ### Wave 2 — Health & Medicine Intelligence
 
 Rows in wave: 12
-Completed: 7
-In Development: 5
+Completed: 8
+In Development: 4
 Pending: 0
 Needs Fix: 0
 Mock/Demo: 0
@@ -112,10 +112,10 @@ Not Required: 0
 ### Wave 3 — Advanced Personal Health
 
 Rows in wave: 18
-Completed: 0
-In Development: 8
-Pending: 9
-Needs Fix: 1
+Completed: 6
+In Development: 6
+Pending: 6
+Needs Fix: 0
 Mock/Demo: 0
 Deferred: 0
 Not Required: 0
@@ -134,10 +134,10 @@ Not Required: 1
 ### Wave 5 — Business / Enterprise / Scale
 
 Rows in wave: 13
-Completed: 1
+Completed: 2
 In Development: 1
 Pending: 6
-Needs Fix: 1
+Needs Fix: 0
 Mock/Demo: 0
 Deferred: 4
 Not Required: 0
@@ -261,10 +261,10 @@ Do **not** claim regulatory compliance from this track alone.
 | HN-PROF-003 | Wave 1 | B. User Profile | Secondary phone (phone2) | Implemented & Working | 🟢 COMPLETED | P2 | V1.0 | — | PARTIALLY VERIFIED | STATUS.md | `phone2` on User; `_Phone2Dialog` |
 | HN-PROF-004 | Wave 1 | B. User Profile | Health conditions | Implemented & Working | 🟢 COMPLETED | P0 | V1.0 | ENCRYPTION_KEY; Remaining: Ensure ENCRYPTION_KEY set in prod | PARTIALLY VERIFIED | STATUS.md | Encrypted JSON; chip editor on Profile |
 | HN-PROF-005 | Wave 1 | B. User Profile | Allergies | Implemented & Working | 🟢 COMPLETED | P0 | V1.0 | ENCRYPTION_KEY | PARTIALLY VERIFIED | STATUS.md | Same as conditions |
-| HN-PROF-006 | Wave 3 | B. User Profile | Lifestyle preferences | Partially Implemented | 🟡 UNDER DEVELOPMENT | P2 | V1.2 | Remaining: Expose in API response + Profile UI | PARTIALLY VERIFIED | STATUS.md | Column + write in update; omitted from `UserResponse`; no UI |
+| HN-PROF-006 | Wave 3 | B. User Profile | Lifestyle preferences | Implemented & Working | 🟢 COMPLETED | P2 | V1.2 | Remaining: Android E2E on emulator/device | PARTIALLY VERIFIED | STATUS.md | GET/PUT `/users/me` exposes existing encrypted JSON object; Profile editor; host tests PASS; Android E2E BLOCKED |
 | HN-PROF-007 | Wave 1 | B. User Profile | Emergency contacts (profile-adjacent) | Partially Implemented | 🟢 COMPLETED | P1 | V1.0 | Remaining: Optional profile deep-link | VERIFIED | SPRINT2_SOS_DEVICE | Delete UI via Emergency screen; device SOS-03 PASS |
 | HN-PROF-008 | Wave 1 | B. User Profile | Profile photo | Implemented & Working | 🟢 COMPLETED | P2 | V1.0 | Local disk storage; Remaining: CDN/S3 for prod scale | PARTIALLY VERIFIED | STATUS.md | `POST /users/me/photo`; Profile camera/gallery upload |
-| HN-PROF-009 | Wave 1 | B. User Profile | Address / reverse geocode | Partially Implemented | 🟡 UNDER DEVELOPMENT | P2 | V1.0 | Nominatim; Remaining: Rate-limit / ToS compliance | PARTIALLY VERIFIED | STATUS.md | Profile address fields + Nominatim; AU-oriented |
+| HN-PROF-009 | Wave 1 | B. User Profile | Address / reverse geocode | Implemented & Working | 🟢 COMPLETED | P2 | V1.0 | Remaining: Android E2E on emulator/device | PARTIALLY VERIFIED | S6-S14 | Nominatim reverse-geocode hygiene: identifying User-Agent+contact, connect/receive timeouts, ≥1s spacing + coord cache, safe errors, OSM attribution; existing address retained on failure; no coord/address logging; Android BLOCKED |
 | HN-PROF-010 | Wave 1 | B. User Profile | Profile persistence | Implemented & Working | 🟢 COMPLETED | P0 | V1.0 | Redis optional | PARTIALLY VERIFIED | STATUS.md | Postgres users table; Redis profile cache key |
 | HN-FAMILY-001 | Wave 1 | C. Family Health Management | Add family member | Implemented & Working | 🟢 COMPLETED | P0 | V1.0 | — | PARTIALLY VERIFIED | STATUS.md | `AddFamilyMemberScreen` → `POST /family/` |
 | HN-FAMILY-002 | Wave 1 | C. Family Health Management | Edit family member | Implemented & Working | 🟢 COMPLETED | P1 | V1.0 | — | VERIFIED | SPRINT3_FAMILY_EDIT | `EditFamilyMemberScreen` + `family/edit/:id`; PUT owner-scoped; device FAMILY-UI-01..10 PASS |
@@ -273,14 +273,14 @@ Do **not** claim regulatory compliance from this track alone.
 | HN-FAMILY-005 | Wave 1 | C. Family Health Management | Family medical conditions | Implemented & Working | 🟢 COMPLETED | P1 | V1.0 | — | PARTIALLY VERIFIED | STATUS.md | Stored on create; editable via HN-FAMILY-002 edit UI |
 | HN-FAMILY-006 | Wave 1 | C. Family Health Management | Family allergies | Implemented & Working | 🟢 COMPLETED | P1 | V1.0 | — | PARTIALLY VERIFIED | STATUS.md | Same as conditions; editable via HN-FAMILY-002 |
 | HN-FAMILY-007 | Wave 1 | C. Family Health Management | Family blood group | Implemented & Working | 🟢 COMPLETED | P2 | V1.0 | — | PARTIALLY VERIFIED | STATUS.md | Field on FamilyMember create/view |
-| HN-FAMILY-008 | Wave 1 | C. Family Health Management | Family medications (dedicated) | Partially Implemented | 🟡 UNDER DEVELOPMENT | P2 | V1.0 | Remaining: Family-centric medication UI | PARTIALLY VERIFIED | STATUS.md | No meds on FamilyMember; reminders can set `family_member_id` |
+| HN-FAMILY-008 | Wave 1 | C. Family Health Management | Family medications (dedicated) | Implemented & Working | 🟢 COMPLETED | P2 | V1.0 | Remaining: Android E2E on emulator/device | PARTIALLY VERIFIED | S6-S11 | Family Medications hub reuses owner-scoped GET /family/ + GET /reminders/; no second medication model; tap opens existing reminder edit; Android BLOCKED |
 | HN-FAMILY-009 | Wave 1 | C. Family Health Management | Family reminders | Implemented & Working | 🟢 COMPLETED | P0 | V1.0 | — | VERIFIED | SPRINT3_FAMILY_REM | Owner-scoped `family_member_id`; authoritative `family_member_name`; create/update/list/edit; local notifications unchanged; FAMILY-REM-SEC + device QA PASS |
 | HN-FAMILY-010 | Wave 3 | C. Family Health Management | Switch active family profile | Not Implemented | 🟠 PENDING | P2 | V1.2 | Remaining: Design multi-profile context | NOT VERIFIED | STATUS.md | No global 'acting as' profile context |
-| HN-FAMILY-011 | Wave 1 | C. Family Health Management | Family data isolation | Implemented & Working | 🟢 COMPLETED | P0 | V1.0 | — | PARTIALLY VERIFIED | STATUS.md | Queries filter owner `user_id` |
+| HN-FAMILY-011 | Wave 1 | C. Family Health Management | Family data isolation | Implemented & Working | 🟢 COMPLETED | P0 | V1.0 | Remaining: Android E2E on emulator/device | PARTIALLY VERIFIED | S6-S6 | Owner-scoped family queries retained; `/records/upload` now 404s unowned/inactive/missing `family_member_id` before encrypted file write; RECORD-FAMILY-SEC host PASS; Android BLOCKED |
 | HN-FAMILY-012 | Wave 1 | C. Family Health Management | Family photo upload | Not Required | 🟢 COMPLETED | P2 | V1.0 | — | VERIFIED | SPRINT3_FAMILY_PHOTO | Closure: removed orphaned `FamilyApi.uploadPhoto`; no UI/DB/route; initials avatars retained; HN-PROF-008 untouched |
 | HN-RECORD-001 | Wave 1 | D. Medical Records | Upload PDF | Implemented & Working | 🟢 COMPLETED | P0 | V1.0 | Local uploads dir | PARTIALLY VERIFIED | STATUS.md | `FilePicker` + `POST /records/upload`; pdf allowed |
 | HN-RECORD-002 | Wave 1 | D. Medical Records | Upload JPG/PNG | Implemented & Working | 🟢 COMPLETED | P0 | V1.0 | — | PARTIALLY VERIFIED | STATUS.md | Gallery picker; jpg/jpeg/png/heic |
-| HN-RECORD-003 | Wave 3 | D. Medical Records | Camera capture for records | Not Implemented | 🟠 PENDING | P2 | V1.2 | Remaining: Add camera option | NOT VERIFIED | STATUS.md | Upload UI: gallery + PDF only; no `ImageSource.camera` |
+| HN-RECORD-003 | Wave 3 | D. Medical Records | Camera capture for records | Implemented & Working | 🟢 COMPLETED | P2 | V1.2 | Remaining: Android E2E on emulator/device | PARTIALLY VERIFIED | S6-S13 | Camera added to existing upload source sheet via `image_picker` `ImageSource.camera`; gallery + PDF unchanged; POST `/records/upload` reused; no new backend; Android BLOCKED |
 | HN-RECORD-004 | Wave 1 | D. Medical Records | Gallery selection | Implemented & Working | 🟢 COMPLETED | P0 | V1.0 | — | PARTIALLY VERIFIED | STATUS.md | `ImagePicker` gallery |
 | HN-RECORD-005 | Wave 1 | D. Medical Records | Document categorization | Needs Fix | 🟢 COMPLETED | P1 | V1.0 | Remaining: Align type enums | VERIFIED | STATUS.md | Flutter sends `discharge`; API `VALID_TYPES` expects `discharge_summary` | Closure: live upload discharge→discharge_summary | Sprint1: discharge→discharge_summary alias + Flutter aligned |
 | HN-RECORD-006 | Wave 1 | D. Medical Records | Document listing | Implemented & Working | 🟢 COMPLETED | P0 | V1.0 | — | PARTIALLY VERIFIED | STATUS.md | `RecordsScreen` tabs + `GET /records/` |
@@ -289,11 +289,11 @@ Do **not** claim regulatory compliance from this track alone.
 | HN-RECORD-009 | Wave 1 | D. Medical Records | Secure storage (files) | Implemented & Working | 🟢 COMPLETED | P1 | V1.0 | Optional AWS S3 (out of scope) | VERIFIED | S5-S5 | Encrypted-at-rest local files (`HNREC1`+Fernet); owner download decrypts; legacy plaintext readable; S3 unused |
 | HN-RECORD-010 | Wave 1 | D. Medical Records | User-specific access control (API download) | Implemented & Working | 🟢 COMPLETED | P0 | V1.0 | — | VERIFIED | STATUS.md | Authenticated owner check on `/{id}/file` | Closure: other user GET/DL/DEL → 404 | Sprint1: owner check + inactive excluded |
 | HN-RECORD-011 | Wave 1 | D. Medical Records | Public /uploads StaticFiles mount | Needs Fix | 🟢 COMPLETED | P0 | V1.0 | Remaining: Remove mount or require auth | VERIFIED | STATUS.md | `main.py` mounts `/uploads` without JWT — undermines access control | Closure: HTTP /uploads → 404; no StaticFiles mount | Sprint1: verified no public StaticFiles /uploads mount |
-| HN-RECORD-012 | Wave 1 | D. Medical Records | Download/share | Partially Implemented | 🟡 UNDER DEVELOPMENT | P2 | V1.0 | Remaining: Share sheet + secure links | PARTIALLY VERIFIED | STATUS.md | Backend file endpoint; no share UI |
+| HN-RECORD-012 | Wave 1 | D. Medical Records | Download/share | Implemented & Working | 🟢 COMPLETED | P2 | V1.0 | Remaining: Android native share-sheet E2E on emulator/device | PARTIALLY VERIFIED | S6-S7 | Authenticated `GET /records/{id}/file` reused; temp file + `share_plus` share sheet; safe `medical_record_<type>_<date>.<ext>` name (no ids/PHI); view/download unchanged; no public URLs; RECORD-SHARE-FL 8 PASS; Android BLOCKED |
 | HN-RX-001 | Wave 1 | E. Prescription Management | List prescriptions | Implemented & Working | 🟢 COMPLETED | P1 | V1.0 | — | PARTIALLY VERIFIED | STATUS.md | `GET /prescriptions/`; detail route |
 | HN-RX-002 | Wave 1 | E. Prescription Management | Prescription detail view | Implemented & Working | 🟢 COMPLETED | P1 | V1.0 | — | PARTIALLY VERIFIED | STATUS.md | `prescription_detail_screen.dart` |
 | HN-RX-003 | Wave 1 | E. Prescription Management | Manual prescription entry | Not Implemented | 🟠 PENDING | P2 | V1.0 | Remaining: Add manual CRUD if needed | NOT VERIFIED | STATUS.md | No manual create form found |
-| HN-RX-004 | Wave 1 | E. Prescription Management | Link prescription to family member | Partially Implemented | 🟡 UNDER DEVELOPMENT | P2 | V1.0 | Remaining: Expose in scan UI | PARTIALLY VERIFIED | STATUS.md | API accepts `family_member_id` on scan; UI limited |
+| HN-RX-004 | Wave 1 | E. Prescription Management | Link prescription to family member | Implemented & Working | 🟢 COMPLETED | P2 | V1.0 | Remaining: Android E2E on emulator/device | PARTIALLY VERIFIED | S6-S5 | Confirm persists owned `family_member_id` only; 404 unowned/missing (no existence leak); scan persist path remains disabled; scan/review selector Self-default; RX-FAMILY-SEC/FUNC/FL host PASS; Android BLOCKED |
 | HN-OCR-001 | Wave 1 | F. Prescription OCR | Image upload (camera/gallery) | Implemented & Working | 🟢 COMPLETED | P0 | V1.0 | — | PARTIALLY VERIFIED | STATUS.md | `PrescriptionScanScreen` camera + gallery → `/prescriptions/scan` | Sprint1: scan→/ocr then review |
 | HN-OCR-002 | Wave 1 | F. Prescription OCR | OCR engine (Tesseract/PyMuPDF) | Partially Implemented | 🟡 UNDER DEVELOPMENT | P0 | V1.0 | Tesseract binary; Remaining: Ensure prod image has Tesseract | PARTIALLY VERIFIED | STATUS.md | `ocr_provider.py`; Docker installs tesseract; empty if missing |
 | HN-OCR-003 | Wave 1 | F. Prescription OCR | Printed prescription recognition | Implemented & Working | 🟢 COMPLETED | P1 | V1.0 | — | VERIFIED | S5-S6 | Canonical confidence 0..1; threshold 0.60; Confirm gated on needsReview; legacy persist=true disabled; fixture+Android QA PASS |
@@ -335,7 +335,7 @@ Do **not** claim regulatory compliance from this track alone.
 | HN-MEDMGMT-004 | Wave 1 | I. Medication Management | Dose / frequency / dates / notes | Needs Fix | 🟢 COMPLETED | P0 | V1.0 | Remaining: Map Daily→daily etc. | VERIFIED | STATUS.md | UI collects fields but frequency labels break DB check | Sprint1: frequencyToApi + API normalize; tests pass |
 | HN-MEDMGMT-005 | Wave 1 | I. Medication Management | Active/inactive | Implemented & Working | 🟢 COMPLETED | P1 | V1.0 | — | PARTIALLY VERIFIED | STATUS.md | Toggle in RemindersScreen |
 | HN-MEDMGMT-006 | Wave 1 | I. Medication Management | Medication history | Partially Implemented | 🟡 UNDER DEVELOPMENT | P2 | V1.0 | Remaining: History/adherence log | PARTIALLY VERIFIED | STATUS.md | Schedules list; no dedicated history timeline |
-| HN-MEDMGMT-007 | Wave 1 | I. Medication Management | Family medication management | Partially Implemented | 🟡 UNDER DEVELOPMENT | P2 | V1.0 | Remaining: Family hub UI | PARTIALLY VERIFIED | STATUS.md | Optional `family_member_id` on schedule |
+| HN-MEDMGMT-007 | Wave 1 | I. Medication Management | Family medication management | Implemented & Working | 🟢 COMPLETED | P2 | V1.0 | Remaining: Android E2E on emulator/device | PARTIALLY VERIFIED | S6-S11 | Family hub UI delivered by HN-FAMILY-008; owner-scoped GET `/family/` + GET `/reminders/`; tap opens existing reminder edit; no second medication model; Android BLOCKED |
 | HN-REM-001 | Wave 1 | J. Medication Reminders | Reminder creation | Needs Fix | 🟢 COMPLETED | P0 | V1.0 | Remaining: Normalize frequency strings | VERIFIED | STATUS.md | E2E FAIL: Flutter `'Daily'` vs CHECK (`daily`,`twice_daily`,…) | Closure: API create Daily/Weekly/Monthly OK | Sprint1: create path + frequency normalize; unit tests |
 | HN-REM-002 | Wave 1 | J. Medication Reminders | Daily / twice / three times UI | Needs Fix | 🟢 COMPLETED | P0 | V1.0 | Remaining: Mapping layer | VERIFIED | STATUS.md | UI labels Title Case; DB snake_case — create fails | Sprint1: Title Case→snake_case mapping both sides |
 | HN-REM-003 | Wave 1 | J. Medication Reminders | Weekly / monthly semantics | Needs Fix | 🟢 COMPLETED | P1 | V1.0 | Remaining: Weekly device-fire wait optional | VERIFIED | SPRINT1_N04 | start_date DOW/DOM in fn+local; alembic 015; N04b monthly Android fire PASS (dayOfMonthAndTime, due_day=4, active notif body match count=1) | Sprint1: monthly device fire PASS; weekly fire still schedule-path (N03) |
@@ -347,13 +347,13 @@ Do **not** claim regulatory compliance from this track alone.
 | HN-REM-009 | Wave 1 | J. Medication Reminders | Refill reminder | Implemented & Working | 🟢 COMPLETED | P2 | V1.0 | — | VERIFIED | S5-S7_REM009 | Local refill: create/edit `refill_date` UI+payload; one-shot local notif id=`scheduleId*10+9` (outside dose 0..3); cancel on edit/clear/delete/disable; past dates skipped (not moved); no FCM. REM9-01..06 backend + REM9-07..09 Flutter + Android REM9-10..12 PASS |
 | HN-REM-010 | Wave 3 | J. Medication Reminders | Appointment reminder | Not Implemented | 🟠 PENDING | P3 | V1.2 | Remaining: Future module | NOT VERIFIED | STATUS.md | No appointments feature |
 | HN-REM-011 | Wave 1 | J. Medication Reminders | Background / reboot reliability | Implemented & Working | 🟢 COMPLETED | P1 | V1.0 | — | VERIFIED | SPRINT1_FINAL | Boot receivers + RTC_WAKEUP restored after adb reboot; N08_REBOOT_CHECK restored=true | Final: N08 PASS |
-| HN-HEALTH-001 | Wave 1 | K. Health Monitoring | Blood pressure / sugar / HR / SpO2 / weight | Implemented & Working | 🟢 COMPLETED | P0 | V1.0 | — | PARTIALLY VERIFIED | STATUS.md | `LogMetricScreen` + `POST /health-metrics/`; E2E HR PASS |
+| HN-HEALTH-001 | Wave 1 | K. Health Monitoring | Blood pressure / sugar / HR / SpO2 / weight | Implemented & Working | 🟢 COMPLETED | P0 | V1.0 | Remaining: Android E2E on emulator/device | PARTIALLY VERIFIED | S6-S1 | Typed create/list + owner/family isolation; 7/30/90 `days`; HEALTH-BE 16 PASS; HEALTH-FL 18 PASS; Android HEALTH-ANDROID-01..19 BLOCKED (emulator guest never reached adb device) |
 | HN-HEALTH-002 | Wave 1 | K. Health Monitoring | Temperature | Implemented & Working | 🟢 COMPLETED | P2 | V1.0 | — | PARTIALLY VERIFIED | STATUS.md | Supported in metrics types |
 | HN-HEALTH-003 | Wave 1 | K. Health Monitoring | Date/time recording | Implemented & Working | 🟢 COMPLETED | P0 | V1.0 | — | PARTIALLY VERIFIED | STATUS.md | Server timestamps + history |
-| HN-HEALTH-004 | Wave 1 | K. Health Monitoring | Historical records / charts / trends | Implemented & Working | 🟢 COMPLETED | P1 | V1.0 | Remaining: Richer history screen | PARTIALLY VERIFIED | STATUS.md | `fl_chart` sparklines; summary API |
-| HN-HEALTH-005 | Wave 1 | K. Health Monitoring | Edit metric | Not Implemented | 🟠 PENDING | P2 | V1.0 | Remaining: Add update endpoint + UI | NOT VERIFIED | STATUS.md | No PUT/PATCH route on health_metrics |
-| HN-HEALTH-006 | Wave 1 | K. Health Monitoring | Delete metric | Not Implemented | 🟠 PENDING | P2 | V1.0 | Remaining: Add delete | NOT VERIFIED | STATUS.md | No DELETE route |
-| HN-HEALTH-007 | Wave 1 | K. Health Monitoring | Family health metrics | Partially Implemented | 🟡 UNDER DEVELOPMENT | P2 | V1.0 | Remaining: Family selector in log UI | PARTIALLY VERIFIED | STATUS.md | `family_member_id` on model/schema; UI limited |
+| HN-HEALTH-004 | Wave 1 | K. Health Monitoring | Historical records / charts / trends | Implemented & Working | 🟢 COMPLETED | P1 | V1.0 | Remaining: Android E2E on emulator/device | PARTIALLY VERIFIED | S6-S1 | `MetricHistoryScreen`; chronological `fl_chart` (`isCurved: false`); 7/30/90 filters; no fabricated points; Android HEALTH-ANDROID-01..19 BLOCKED (emulator guest never reached adb device) |
+| HN-HEALTH-005 | Wave 1 | K. Health Monitoring | Edit metric | Implemented & Working | 🟢 COMPLETED | P2 | V1.0 | Remaining: Android E2E on emulator/device | PARTIALLY VERIFIED | S6-S4 | PUT `/{id}` owner-scoped; type and family subject frozen; S6-S1 validation reused; log screen edit mode; HEALTH-CRUD-SEC/EDIT host PASS; Android BLOCKED |
+| HN-HEALTH-006 | Wave 1 | K. Health Monitoring | Delete metric | Implemented & Working | 🟢 COMPLETED | P2 | V1.0 | Remaining: Android E2E on emulator/device | PARTIALLY VERIFIED | S6-S4 | DELETE `/{id}` hard delete (no `deleted_at` column; no migration); 404 missing/cross-user/repeat; history confirm dialog; summary cache invalidated; Android BLOCKED |
+| HN-HEALTH-007 | Wave 1 | K. Health Monitoring | Family health metrics | Implemented & Working | 🟢 COMPLETED | P2 | V1.0 | Remaining: Android E2E on emulator/device | PARTIALLY VERIFIED | S6-S3 | S6-S1 owner-scoped family metrics reused; log inherits Health Monitor subject only if owned; HEALTH-FAMILY-SEC host PASS; Android BLOCKED after retry (healthnest_atd34 qemu listening, `127.0.0.1:5555` offline, guest never reached `adb device`; Linux/Chrome not Android evidence) |
 | HN-SOS-001 | Wave 1 | L. Emergency / SOS | Emergency button / long-press SOS | Implemented & Working | 🟢 COMPLETED | P1 | V1.0 | — | VERIFIED | SPRINT3_SOS_HOLD | Explicit 3s `SosHoldButton` (Listener + AnimationController); early release cancels; progress ring; Sprint2 dial-first honesty preserved; device SOS-ANDROID matrix PASS |
 | HN-SOS-002 | Wave 1 | L. Emergency / SOS | Emergency contacts CRUD | Partially Implemented | 🟢 COMPLETED | P1 | V1.0 | Remaining: None for delete path | VERIFIED | SPRINT2_SOS_DEVICE | Add/list + API delete; Sprint2: delete confirm UI; device SOS-03 PASS on emulator-5554 |
 | HN-SOS-003 | Wave 1 | L. Emergency / SOS | Call emergency contact | Implemented & Working | 🟢 COMPLETED | P0 | V1.0 | Phone dialer | PARTIALLY VERIFIED | STATUS.md | `tel:` launcher |
@@ -372,13 +372,13 @@ Do **not** claim regulatory compliance from this track alone.
 | HN-NOTIF-003 | Wave 1 | N. Notifications | Local notifications | Implemented & Working | 🟢 COMPLETED | P1 | V1.0 | — | VERIFIED | SPRINT1_N09 | Device TZ + exactAllowWhileIdle; N02b daily fire PASS; N04b monthly fire PASS; **N09 denied UX PASS**; schedule/cancel E2E PASS | Final: local path verified on emulator-5554 including monthly fire + denied UX |
 | HN-NOTIF-004 | Wave 1 | N. Notifications | Push token registration | Not Implemented | 🟠 PENDING | P0 | V1.0 | FCM; Remaining: Register on login | NOT VERIFIED | STATUS.md | `UserApi.updateFcmToken` never called |
 | HN-NOTIF-005 | Wave 1 | N. Notifications | Medication push delivery E2E | Partially Implemented | 🟡 UNDER DEVELOPMENT | P0 | V1.0 | FCM still deferred; local E2E verified | PARTIALLY VERIFIED | SPRINT1_FINAL | Local daily fire PASS; FCM production still DEFERRED | Final: local E2E PASS; FCM not production-ready |
-| HN-NOTIF-006 | Wave 3 | N. Notifications | In-app notifications UI | Not Implemented | 🟠 PENDING | P2 | V1.2 | Remaining: Inbox screen | NOT VERIFIED | STATUS.md | Home bell `onPressed: () {}` |
+| HN-NOTIF-006 | Wave 3 | N. Notifications | In-app notifications UI | Implemented & Working | 🟢 COMPLETED | P2 | V1.2 | Remaining: Android E2E on emulator/device | PARTIALLY VERIFIED | STATUS.md | Home bell → Notifications inbox; no persisted in-app records (FCM deferred; unused `notification_logs` not wired); truthful empty state; host tests PASS; Android BLOCKED |
 | HN-NOTIF-007 | Wave 1 | N. Notifications | Android notification channels | Implemented & Working | 🟢 COMPLETED | P1 | V1.0 | — | VERIFIED | SPRINT1_FINAL | Channel `vitapulse_reminders` / Medication reminders created; dumpsys confirmed | Final: channel PASS |
 | HN-SEC-001 | Wave 1 | O. Privacy & Security | HTTPS (client production) | Needs Fix | 🔴 NEEDS FIX | P0 | V1.0 | Prod API host; Remaining: Deploy HTTPS API + dart-define | PARTIALLY VERIFIED | STATUS.md | Release refuses LAN if no `API_BASE_URL`; no hosted HTTPS API configured in build |
 | HN-SEC-002 | Wave 1 | O. Privacy & Security | Cleartext traffic policy | Implemented & Working | 🟢 COMPLETED | P0 | V1.0 | — | PARTIALLY VERIFIED | STATUS.md | Release manifest `usesCleartextTraffic=false`; debug true |
 | HN-SEC-003 | Wave 1 | O. Privacy & Security | JWT API authentication | Implemented & Working | 🟢 COMPLETED | P0 | V1.0 | — | PARTIALLY VERIFIED | STATUS.md | `get_current_user` Bearer on protected routes |
 | HN-SEC-004 | Wave 1 | O. Privacy & Security | User data isolation | Implemented & Working | 🟢 COMPLETED | P0 | V1.0 | — | PARTIALLY VERIFIED | STATUS.md | Routes filter `current_user.id` |
-| HN-SEC-005 | Wave 1 | O. Privacy & Security | Field-level encryption | Partially Implemented | 🟡 UNDER DEVELOPMENT | P1 | V1.0 | ENCRYPTION_KEY; Remaining: Key management / rotation | PARTIALLY VERIFIED | STATUS.md | Fernet `EncryptedText` on selected columns; needs ENCRYPTION_KEY |
+| HN-SEC-005 | Wave 1 | O. Privacy & Security | Field-level encryption | Implemented & Working | 🟢 COMPLETED | P1 | V1.0 | Remaining: Production ENCRYPTION_KEY store / rotation; Android E2E BLOCKED | PARTIALLY VERIFIED | S6-S2 | Fernet `EncryptedText` on user clinical JSON, medical-record notes, eRx/OCR/AI messages, and family `medical_conditions`/`allergies`/`notes`. SEC5-BE 12 PASS; RECORD-009 regression PASS. No Key Vault. Identity fields stay plaintext (queryable). |
 | HN-SEC-006 | Wave 1 | O. Privacy & Security | Secrets management | Implemented & Working | 🟢 COMPLETED | P0 | V1.0 | External residual: historical Git exposure; live credential rotation; production secret store | VERIFIED | SPRINT5-S1 | Verified after S5-S1 local hygiene: env/config injection; private credential files protected from tracking; `.env.example` placeholders only; `scripts/audit_tracked_secrets.py` PASS/count=0; rotation procedure documented in `docs/SECURITY_HYGIENE.md`; sensitive logging protected. Does not claim production secret-store completion |
 | HN-SEC-007 | Wave 1 | O. Privacy & Security | Sensitive logging | Implemented & Working | 🟢 COMPLETED | P1 | V1.0 | — | VERIFIED | SPRINT4-S1 | No plaintext OTP; ApiClient/DebugLogger omit bodies; AI/health logs metadata-only |
 | HN-SEC-008 | Wave 1 | O. Privacy & Security | CORS configuration | Needs Fix | 🟢 COMPLETED | P1 | V1.0 | Remaining: Set prod origins in CORS_ORIGINS env | VERIFIED | SPRINT2 | allow_origins from settings.get_cors_origins(); never '*'; credentials OK |
@@ -419,12 +419,12 @@ Do **not** claim regulatory compliance from this track alone.
 | HN-SET-003 | Wave 1 | V. Settings | Privacy settings | Partially Implemented | 🟡 UNDER DEVELOPMENT | P2 | V1.0 | Remaining: Consent preferences | PARTIALLY VERIFIED | STATUS.md | Links to legal screens; no granular toggles |
 | HN-SET-004 | Wave 1 | V. Settings | Security settings | Not Implemented | 🟠 PENDING | P3 | V1.0 | Remaining: Optional biometrics | NOT VERIFIED | STATUS.md | No PIN/biometric settings UI |
 | HN-SET-005 | Wave 1 | V. Settings | Logout from profile/drawer | Implemented & Working | 🟢 COMPLETED | P1 | V1.0 | Remaining: Server revoke | PARTIALLY VERIFIED | STATUS.md | Clears secure storage |
-| HN-SET-006 | Wave 1 | V. Settings | About / Help / Feedback | Not Implemented | 🟠 PENDING | P2 | V1.0 | Error report only; Remaining: Add support screens | NOT VERIFIED | STATUS.md | No dedicated about/help/feedback screens found |
+| HN-SET-006 | Wave 1 | V. Settings | About / Help / Feedback | Implemented & Working | 🟢 COMPLETED | P2 | V1.0 | Remaining: Android E2E on emulator/device | PARTIALLY VERIFIED | STATUS.md | About/Help/Feedback screens; mailto reuses existing support address; no new backend; host tests PASS; Android BLOCKED |
 | HN-UX-001 | Wave 1 | W. Onboarding / UX | Splash + auth routing | Implemented & Working | 🟢 COMPLETED | P0 | V1.0 | — | PARTIALLY VERIFIED | STATUS.md | `SplashScreen` → consent/welcome/home |
 | HN-UX-002 | Wave 1 | W. Onboarding / UX | Welcome / onboarding | Partially Implemented | 🟡 UNDER DEVELOPMENT | P2 | V1.0 | Remaining: Optional guided tour | PARTIALLY VERIFIED | STATUS.md | Welcome screen; not multi-step product tour |
 | HN-UX-003 | Wave 1 | W. Onboarding / UX | Legal consent gate | Implemented & Working | 🟢 COMPLETED | P0 | V1.0 | — | PARTIALLY VERIFIED | STATUS.md | Required before main app |
 | HN-UX-004 | Wave 1 | W. Onboarding / UX | Navigation (GoRouter + drawer/home) | Implemented & Working | 🟢 COMPLETED | P0 | V1.0 | — | PARTIALLY VERIFIED | STATUS.md | `app_router.dart` feature routes |
-| HN-UX-005 | Wave 1 | W. Onboarding / UX | Loading / empty / error states | Partially Implemented | 🟡 UNDER DEVELOPMENT | P1 | V1.0 | Remaining: Consistent error model | PARTIALLY VERIFIED | STATUS.md | Many screens handle empty; uneven error UX (e.g. reminder 503) |
+| HN-UX-005 | Wave 1 | W. Onboarding / UX | Loading / empty / error states | Implemented & Working | 🟢 COMPLETED | P1 | V1.0 | Remaining: Android E2E on emulator/device | PARTIALLY VERIFIED | Family/Records/Reminders + `ErrorState`/`ErrorHandler`; UX-005-FL tests | Consistent error model on Family, Records, Reminders; soft-refresh retains data; Android E2E blocked |
 | HN-UX-006 | Wave 1 | W. Onboarding / UX | Accessibility | Partially Implemented | 🟡 UNDER DEVELOPMENT | P2 | V1.0 | Remaining: TalkBack / contrast QA | PARTIALLY VERIFIED | STATUS.md | Material defaults; no dedicated a11y audit evidence |
 | HN-INFRA-001 | Wave 1 | X. Technical Infrastructure | Flutter 3.41.0 / Dart 3.11.0 | Implemented & Working | 🟢 COMPLETED | P2 | V1.0 | Remaining: Track upgrades | PARTIALLY VERIFIED | STATUS.md | `flutter --version` on audit machine |
 | HN-INFRA-002 | Wave 1 | X. Technical Infrastructure | Android minSdk 24 / targetSdk 36 | Implemented & Working | 🟢 COMPLETED | P0 | V1.0 | Remaining: None for API 36 rule | PARTIALLY VERIFIED | STATUS.md | Flutter defaults; versionName 1.0.0 versionCode 1 |
@@ -469,5 +469,5 @@ Do **not** claim regulatory compliance from this track alone.
 - Expected rows: 204
 - Reconciliation: PASS
 - Priority counts: {'P0': 72, 'P1': 67, 'P2': 44, 'P3': 21}
-- Development status counts (post Sprint 2): {'🟢 COMPLETED': 100, '🟡 UNDER DEVELOPMENT': 58, '⚪ NOT REQUIRED': 3, '🟠 PENDING': 29, '🔴 NEEDS FIX': 6, '⚫ MOCK/DEMO': 3, '⚪ DEFERRED': 5}
+- Development status counts (post Sprint 2): {'🟢 COMPLETED': 133, '🟡 UNDER DEVELOPMENT': 34, '⚪ NOT REQUIRED': 3, '🟠 PENDING': 23, '🔴 NEEDS FIX': 3, '⚫ MOCK/DEMO': 3, '⚪ DEFERRED': 5, '🔵 IN PROGRESS': 0}
 

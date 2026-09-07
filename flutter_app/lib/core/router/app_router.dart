@@ -9,6 +9,7 @@ import 'package:vitapulse_ai/features/auth/presentation/screens/otp_screen.dart'
 import 'package:vitapulse_ai/features/home/presentation/home_screen.dart';
 import 'package:vitapulse_ai/features/profile/presentation/profile_screen.dart';
 import 'package:vitapulse_ai/features/family/presentation/family_screen.dart';
+import 'package:vitapulse_ai/features/family/presentation/family_medications_screen.dart';
 import 'package:vitapulse_ai/features/family/presentation/add_family_screen.dart';
 import 'package:vitapulse_ai/features/family/presentation/edit_family_screen.dart';
 import 'package:vitapulse_ai/features/records/presentation/records_screen.dart';
@@ -16,12 +17,16 @@ import 'package:vitapulse_ai/features/records/presentation/upload_record_screen.
 import 'package:vitapulse_ai/features/prescriptions/presentation/prescription_scan_screen.dart';
 import 'package:vitapulse_ai/features/prescriptions/presentation/prescription_review_screen.dart';
 import 'package:vitapulse_ai/features/prescriptions/presentation/prescription_detail_screen.dart';
+import 'package:vitapulse_ai/features/prescriptions/presentation/prescription_manual_entry_screen.dart';
+import 'package:vitapulse_ai/features/prescriptions/presentation/prescription_manual_review_screen.dart';
+import 'package:vitapulse_ai/features/prescriptions/data/manual_prescription_draft.dart';
 import 'package:vitapulse_ai/features/medicines/presentation/medicine_search_screen.dart';
 import 'package:vitapulse_ai/features/medicines/presentation/medicine_detail_screen.dart';
 import 'package:vitapulse_ai/features/reminders/presentation/reminders_screen.dart';
 import 'package:vitapulse_ai/features/reminders/presentation/add_reminder_screen.dart';
 import 'package:vitapulse_ai/features/health_monitoring/presentation/health_monitoring_screen.dart';
 import 'package:vitapulse_ai/features/health_monitoring/presentation/log_metric_screen.dart';
+import 'package:vitapulse_ai/features/health_monitoring/presentation/metric_history_screen.dart';
 import 'package:vitapulse_ai/features/ai_assistant/presentation/ai_chat_screen.dart';
 import 'package:vitapulse_ai/features/ai_assistant/presentation/ai_conversation_history_screen.dart';
 import 'package:vitapulse_ai/features/emergency/presentation/emergency_screen.dart';
@@ -34,8 +39,13 @@ import 'package:vitapulse_ai/features/eprescriptions/presentation/eprescription_
 import 'package:vitapulse_ai/features/eprescriptions/presentation/eprescription_scan_screen.dart';
 import 'package:vitapulse_ai/features/eprescriptions/presentation/eprescription_result_screen.dart';
 import 'package:vitapulse_ai/features/settings/presentation/appearance_screen.dart';
+import 'package:vitapulse_ai/features/settings/presentation/about_screen.dart';
+import 'package:vitapulse_ai/features/settings/presentation/help_screen.dart';
+import 'package:vitapulse_ai/features/settings/presentation/feedback_screen.dart';
+import 'package:vitapulse_ai/features/notifications/presentation/notifications_screen.dart';
 import 'package:vitapulse_ai/features/legal/legal_screens.dart';
 import 'package:vitapulse_ai/core/config/app_env.dart';
+import 'package:vitapulse_ai/core/router/page_transitions.dart';
 
 final appRouter = GoRouter(
   initialLocation: '/splash',
@@ -105,6 +115,10 @@ final appRouter = GoRouter(
       routes: [
         GoRoute(path: 'profile', builder: (_, __) => const ProfileScreen()),
         GoRoute(path: 'family', builder: (_, __) => const FamilyScreen()),
+        GoRoute(
+          path: 'family/medications',
+          builder: (_, __) => const FamilyMedicationsScreen(),
+        ),
         GoRoute(path: 'family/add', builder: (_, __) => const AddFamilyMemberScreen()),
         GoRoute(
           path: 'family/edit/:id',
@@ -130,6 +144,27 @@ final appRouter = GoRouter(
         GoRoute(path: 'records/upload', builder: (_, __) => const UploadRecordScreen()),
         GoRoute(path: 'prescriptions/scan', builder: (_, __) => const PrescriptionScanScreen()),
         GoRoute(
+          path: 'prescriptions/manual',
+          builder: (_, state) {
+            final extra = state.extra;
+            ManualPrescriptionDraft? draft;
+            if (extra is ManualPrescriptionDraft) draft = extra;
+            return PrescriptionManualEntryScreen(initialDraft: draft);
+          },
+        ),
+        GoRoute(
+          path: 'prescriptions/manual/review',
+          builder: (_, state) {
+            final extra = state.extra;
+            if (extra is! ManualPrescriptionDraft) {
+              return const Scaffold(
+                body: Center(child: Text('Missing prescription draft')),
+              );
+            }
+            return PrescriptionManualReviewScreen(draft: extra);
+          },
+        ),
+        GoRoute(
           path: 'prescriptions/review',
           builder: (context, state) {
             final extra = state.extra;
@@ -139,9 +174,24 @@ final appRouter = GoRouter(
               );
             }
             final map = Map<String, dynamic>.from(extra);
+            int? familyMemberId;
+            final rawId = map['familyMemberId'];
+            if (rawId is int) {
+              familyMemberId = rawId;
+            } else if (rawId is num) {
+              familyMemberId = rawId.toInt();
+            }
+            final rawMembers = map['familyMembers'];
+            final familyMembers = rawMembers is List
+                ? List<Map<String, dynamic>>.from(
+                    rawMembers.map((e) => Map<String, dynamic>.from(e as Map)),
+                  )
+                : <Map<String, dynamic>>[];
             return PrescriptionReviewScreen(
               filePath: map['filePath']?.toString() ?? '',
               ocrResult: Map<String, dynamic>.from(map['ocrResult'] as Map? ?? {}),
+              initialFamilyMemberId: familyMemberId,
+              familyMembers: familyMembers,
             );
           },
         ),
@@ -168,8 +218,48 @@ final appRouter = GoRouter(
           ),
         ),
         GoRoute(path: 'health', builder: (_, __) => const HealthMonitoringScreen()),
-        GoRoute(path: 'health/log', builder: (_, __) => const LogMetricScreen()),
-        GoRoute(path: 'ai-chat', builder: (_, __) => const AiChatScreen()),
+        GoRoute(
+          path: 'health/log',
+          builder: (_, state) {
+            int? familyMemberId;
+            final extra = state.extra;
+            if (extra is Map) {
+              final raw = extra['familyMemberId'];
+              if (raw is int) {
+                familyMemberId = raw;
+              } else if (raw is num) {
+                familyMemberId = raw.toInt();
+              }
+            }
+            return LogMetricScreen(
+              initialFamilyMemberId: familyMemberId,
+              existingMetric: extra is Map
+                  ? extra['metric'] as Map<String, dynamic>?
+                  : null,
+            );
+          },
+        ),
+        GoRoute(
+          path: 'health/history',
+          builder: (_, state) {
+            final extra = state.extra as Map<String, dynamic>? ?? const {};
+            return MetricHistoryScreen(
+              metricType: extra['metricType'] as String? ?? 'heart_rate',
+              label: extra['label'] as String? ?? 'Health reading',
+              unit: extra['unit'] as String? ?? '',
+              initialDays: extra['days'] as int? ?? 30,
+              familyMemberId: extra['familyMemberId'] as int?,
+              subjectLabel: extra['subjectLabel'] as String? ?? 'Myself',
+            );
+          },
+        ),
+        GoRoute(
+          path: 'ai-chat',
+          pageBuilder: (context, state) => fadeThroughPage(
+            key: state.pageKey,
+            child: const AiChatScreen(),
+          ),
+        ),
         GoRoute(
           path: 'ai-chat/history',
           builder: (_, __) => const AiConversationHistoryScreen(),
@@ -179,7 +269,13 @@ final appRouter = GoRouter(
         GoRoute(path: 'interactions', builder: (_, __) => const InteractionCheckScreen()),
         GoRoute(path: 'symptoms', builder: (_, __) => const SymptomCheckerScreen()),
         GoRoute(path: 'lab-analysis', builder: (_, __) => const LabAnalysisScreen()),
-        GoRoute(path: 'insights', builder: (_, __) => const HealthInsightsScreen()),
+        GoRoute(
+          path: 'insights',
+          pageBuilder: (context, state) => fadeThroughPage(
+            key: state.pageKey,
+            child: const HealthInsightsScreen(),
+          ),
+        ),
         GoRoute(
           path: 'eprescriptions',
           redirect: (_, __) =>
@@ -200,7 +296,11 @@ final appRouter = GoRouter(
             eprescriptionId: int.parse(state.pathParameters['id']!),
           ),
         ),
+        GoRoute(path: 'notifications', builder: (_, __) => const NotificationsScreen()),
         GoRoute(path: 'settings/appearance', builder: (_, __) => const AppearanceScreen()),
+        GoRoute(path: 'settings/about', builder: (_, __) => const AboutScreen()),
+        GoRoute(path: 'settings/help', builder: (_, __) => const HelpScreen()),
+        GoRoute(path: 'settings/feedback', builder: (_, __) => const FeedbackScreen()),
       ],
     ),
   ],

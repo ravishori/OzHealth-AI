@@ -10,11 +10,14 @@
 //  [D5]  Landscape cards   — childAspectRatio 1.3 for 2-line safety
 //  [D6]  Semantic colours  — per-feature accent tied to healthcare meaning
 //  [D7]  Stagger entrance  — 700ms AnimationController drives 3 stagger offsets
-//  [D8]  Tap scale         — _TapScaleCard provides 0.96 press-down feel
+//  [D8]  Tap scale         — shared TapScale provides 0.96 press-down feel
 //  [D9]  Tab cross-fade    — 200ms FadeTransition between tabs
 //  [D10] RepaintBoundary   — isolates body from SliverAppBar scroll repaints
 //  [D11] WCAG AA           — Semantics labels on every interactive widget
-//  [D12] Responsive        — 3-col on tablets ≥600dp, 2-col on phones
+//  [D12] Responsive        — ResponsiveLayout columns (2/3/4)
+//  [D13] Soft surfaces     — SoftSurface / GlassSurface / HealthMetricCard
+//  [D14] AI insight teaser — presentation-only link to /home/insights
+//  [D15] Dynamic greeting  — time-based phrase + icon (no emoji)
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart';
@@ -26,6 +29,14 @@ import 'package:vitapulse_ai/core/network/server_discovery.dart';
 import 'package:vitapulse_ai/core/utils/auth_storage.dart';
 import 'package:vitapulse_ai/features/auth/data/auth_api.dart';
 import 'package:vitapulse_ai/features/home/presentation/app_drawer.dart';
+import 'package:vitapulse_ai/shared/widgets/ai_insight_teaser.dart';
+import 'package:vitapulse_ai/shared/widgets/dynamic_greeting.dart';
+import 'package:vitapulse_ai/shared/widgets/fade_slide.dart';
+import 'package:vitapulse_ai/shared/widgets/health_metric_card.dart';
+import 'package:vitapulse_ai/shared/widgets/premium_surface.dart';
+import 'package:vitapulse_ai/shared/widgets/responsive_layout.dart';
+import 'package:vitapulse_ai/shared/widgets/section_header.dart';
+import 'package:vitapulse_ai/shared/widgets/tap_scale.dart';
 import 'package:vitapulse_ai/theme/design_tokens/app_elevation.dart';
 import 'package:vitapulse_ai/theme/design_tokens/app_radius.dart';
 import 'package:vitapulse_ai/theme/design_tokens/app_spacing.dart';
@@ -38,12 +49,10 @@ const double _kCardGap          = AppSpacing.x2; // [D1] 8dp
 const double _kScreenPad        = AppSpacing.x4; // [D1] 16dp gutters
 const double _kSectionGap       = AppSpacing.x3; // [D1] 12dp header→grid
 const double _kSectionSpacing   = AppSpacing.x6; // [D1] 24dp between sections
-const double _kTabletBreak      = 600.0;         // [D12] MD3 tablet breakpoint
 const Duration _kTabAnim        = Duration(milliseconds: 200);  // [D9]
 const Duration _kEntranceTotal  = Duration(milliseconds: 700);  // [D7]
 
-int _cols(BuildContext ctx) =>
-    MediaQuery.sizeOf(ctx).width >= _kTabletBreak ? 3 : 2; // [D12]
+int _cols(BuildContext ctx) => ResponsiveLayout.featureColumns(ctx); // [D12]
 
 // ── Stagger helpers [D7] ────────────────────────────────────────────────────────
 // Three stagger bands so the search bar, summary, and grid cascade in sequence.
@@ -329,9 +338,10 @@ class _HomeScreenState extends State<HomeScreen>
             onPressed: _showServerSetup,
           ),
         IconButton(
+          key: const Key('home-notifications-bell'),
           icon:    const Icon(Icons.notifications_outlined, color: Colors.white),
           tooltip: 'Notifications',
-          onPressed: () {}, // placeholder — screen not yet implemented
+          onPressed: () => context.push('/home/notifications'),
         ),
         _buildProfileMenu(),
         const SizedBox(width: 4),
@@ -439,9 +449,7 @@ class _AppBarBackground extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final now = DateTime.now().hour;
-    final greeting = now < 12 ? 'Good Morning' : now < 17 ? 'Good Afternoon' : 'Good Evening';
-
+    // Greeting handled by DynamicGreetingText
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -461,48 +469,21 @@ class _AppBarBackground extends StatelessWidget {
             mainAxisAlignment:  MainAxisAlignment.end,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // [D2] greeting line — two-row compact design
+              // [D2] greeting — DynamicGreeting (no emoji; a11y icon)
               Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          '$greeting 👋',
-                          style: const TextStyle(
-                            color:         Colors.white70,
-                            fontSize:      12,
-                            fontWeight:    FontWeight.w500,
-                            letterSpacing: 0.2,
-                          ),
-                        ),
-                        const SizedBox(height: 1),
-                        Text(
-                          userName.split(' ').first,
-                          style: const TextStyle(
-                            color:         Colors.white,
-                            fontSize:      20,
-                            fontWeight:    FontWeight.w800,
-                            letterSpacing: -0.4,
-                            height:        1.1,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ),
+                    child: DynamicGreetingText(userName: userName),
                   ),
                   const SizedBox(width: 12),
-                  // [D2] status pill — HealthNest branding in header
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color:        Colors.white.withValues(alpha: 0.18),
-                      borderRadius: AppRadius.brFull,
-                      border:       Border.all(color: Colors.white24),
-                    ),
+                  // Glass brand pill
+                  GlassSurface(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 5),
+                    borderRadius: AppRadius.brFull,
+                    opacity: 0.16,
+                    blurSigma: 10,
                     child: const Row(mainAxisSize: MainAxisSize.min, children: [
                       Icon(Icons.health_and_safety_outlined,
                           size: 11, color: Colors.white70),
@@ -569,25 +550,35 @@ class _HomeTab extends StatelessWidget {
         children: [
 
           // ── Search bar [D3][D7] ─────────────────────────────────────────
-          _FadeSlide(animation: aSearch, child: const _HomeSearchBar()),
+          FadeSlide(animation: aSearch, child: const _HomeSearchBar()),
 
           const SizedBox(height: 16),
 
           // ── Today's Health summary [D4][D7] ─────────────────────────────
-          _FadeSlide(
+          FadeSlide(
             animation: aSummary,
             child: const _DashboardSummaryRow(),
+          ),
+
+          const SizedBox(height: 16),
+
+          // ── AI insights teaser (presentation only → existing route) ─────
+          FadeSlide(
+            animation: aSummary,
+            child: AiInsightTeaser(
+              onOpen: () => context.push('/home/insights'),
+            ),
           ),
 
           const SizedBox(height: _kSectionSpacing),
 
           // ── Quick Access [D5][D7] ─────────────────────────────────────
-          _FadeSlide(
+          FadeSlide(
             animation: aCards,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _SectionHeader(
+                SectionHeader(
                   icon:     Icons.bolt_rounded,
                   title:    'Quick Access',
                   subtitle: 'Frequently used tools',
@@ -656,12 +647,12 @@ class _HomeTab extends StatelessWidget {
           const SizedBox(height: _kSectionSpacing),
 
           // ── All Features [D7] ─────────────────────────────────────────
-          _FadeSlide(
+          FadeSlide(
             animation: aCards,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _SectionHeader(
+                SectionHeader(
                   icon:     Icons.grid_view_rounded,
                   title:    'All Features',
                   subtitle: 'Complete toolbox',
@@ -716,7 +707,7 @@ class _HealthTab extends StatelessWidget {
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(_kScreenPad, _kScreenPad, _kScreenPad, 100),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        _SectionHeader(
+        SectionHeader(
             icon: Icons.assignment_outlined,
             title: 'Prescriptions & Records',
             color: hc.prescription),
@@ -727,6 +718,11 @@ class _HealthTab extends StatelessWidget {
               title: 'Scan Prescription', subtitle: 'OCR + AI analysis',
               color: hc.prescription,
               onTap: () => context.push('/home/prescriptions/scan')),
+          _ActionCard(
+              icon: Icons.edit_note_rounded,
+              title: 'Manual Prescription', subtitle: 'Enter → review → save',
+              color: hc.prescription,
+              onTap: () => context.push('/home/prescriptions/manual')),
           _ActionCard(
               icon: Icons.qr_code_2_rounded,
               title: 'ePrescription', subtitle: 'Scan & validate eRx',
@@ -739,7 +735,7 @@ class _HealthTab extends StatelessWidget {
               onTap: () => context.push('/home/records')),
         ]),
         const SizedBox(height: _kSectionSpacing),
-        _SectionHeader(
+        SectionHeader(
             icon: Icons.medication_outlined,
             title: 'Medicines & Reminders',
             color: hc.vitaWarning),
@@ -757,7 +753,7 @@ class _HealthTab extends StatelessWidget {
               onTap: () => context.push('/home/reminders')),
         ]),
         const SizedBox(height: _kSectionSpacing),
-        _SectionHeader(
+        SectionHeader(
             icon: Icons.monitor_heart_outlined,
             title: 'Health Monitoring',
             color: hc.vitaGood),
@@ -796,7 +792,7 @@ class _AiTab extends StatelessWidget {
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(_kScreenPad, _kScreenPad, _kScreenPad, 100),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        _SectionHeader(
+        SectionHeader(
             icon: Icons.psychology_outlined,
             title: 'AI Health Assistant',
             subtitle: 'Powered by Claude AI',
@@ -811,7 +807,7 @@ class _AiTab extends StatelessWidget {
           onTap: () => context.push('/home/ai-chat'),
         ),
         const SizedBox(height: _kSectionSpacing),
-        _SectionHeader(
+        SectionHeader(
             icon: Icons.biotech_outlined,
             title: 'Diagnostic Tools',
             subtitle: 'AI-powered clinical analysis',
@@ -861,7 +857,7 @@ class _FamilyTab extends StatelessWidget {
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(_kScreenPad, _kScreenPad, _kScreenPad, 100),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        _SectionHeader(
+        SectionHeader(
             icon: Icons.group_outlined,
             title: 'Family Health',
             subtitle: 'Manage everyone in one place',
@@ -876,6 +872,14 @@ class _FamilyTab extends StatelessWidget {
         ),
         const SizedBox(height: AppSpacing.x2),
         _WideActionCard(
+          icon: Icons.medication_outlined,
+          title: 'Family Medications',
+          subtitle: 'View reminders managed for family members',
+          color: hc.prescription,
+          onTap: () => context.push('/home/family/medications'),
+        ),
+        const SizedBox(height: AppSpacing.x2),
+        _WideActionCard(
           icon: Icons.qr_code_2_rounded,
           title: 'Shared ePrescriptions',
           subtitle: 'View prescriptions shared with you',
@@ -883,7 +887,7 @@ class _FamilyTab extends StatelessWidget {
           onTap: () => context.push('/home/eprescriptions'),
         ),
         const SizedBox(height: _kSectionSpacing),
-        _SectionHeader(
+        SectionHeader(
             icon: Icons.location_on_outlined,
             title: 'Nearby & Safety',
             color: cs.primary),
@@ -922,7 +926,7 @@ class _MoreTab extends StatelessWidget {
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(_kScreenPad, _kScreenPad, _kScreenPad, 100),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        _SectionHeader(
+        SectionHeader(
             icon: Icons.person_outline,
             title: 'Account',
             subtitle: 'Profile & preferences',
@@ -947,7 +951,37 @@ class _MoreTab extends StatelessWidget {
           );
         }),
         const SizedBox(height: _kSectionSpacing),
-        _SectionHeader(
+        SectionHeader(
+            icon: Icons.support_outlined,
+            title: 'Support',
+            subtitle: 'About, help and feedback',
+            color: cs.primary),
+        const SizedBox(height: _kSectionGap),
+        _WideActionCard(
+          icon: Icons.info_outline,
+          title: 'About',
+          subtitle: 'Version and legal notices',
+          color: cs.primary,
+          onTap: () => context.push('/home/settings/about'),
+        ),
+        const SizedBox(height: AppSpacing.x2),
+        _WideActionCard(
+          icon: Icons.help_outline,
+          title: 'Help',
+          subtitle: 'How to use HealthNest',
+          color: cs.secondary,
+          onTap: () => context.push('/home/settings/help'),
+        ),
+        const SizedBox(height: AppSpacing.x2),
+        _WideActionCard(
+          icon: Icons.feedback_outlined,
+          title: 'Feedback',
+          subtitle: 'Open your email app to send a message',
+          color: hc.discharge,
+          onTap: () => context.push('/home/settings/feedback'),
+        ),
+        const SizedBox(height: _kSectionSpacing),
+        SectionHeader(
             icon: Icons.explore_outlined,
             title: 'Explore All Features',
             subtitle: 'Everything HealthNest offers',
@@ -1007,27 +1041,6 @@ Widget _cardGrid(int cols, List<Widget> children) => GridView.count(
 // ═══════════════════════════════════════════════════════════════════════════════
 // REUSABLE WIDGETS
 // ═══════════════════════════════════════════════════════════════════════════════
-
-// ── [D7] Fade + Slide wrapper ──────────────────────────────────────────────────
-// Wraps any widget in a simultaneous FadeTransition + SlideTransition driven
-// by the stagger animation so sections cascade onto screen smoothly.
-class _FadeSlide extends StatelessWidget {
-  final Animation<double> animation;
-  final Widget child;
-  const _FadeSlide({required this.animation, required this.child});
-
-  @override
-  Widget build(BuildContext context) => FadeTransition(
-    opacity: animation,
-    child: SlideTransition(
-      position: Tween<Offset>(
-        begin: const Offset(0, 0.04), // subtle — 4% of widget height
-        end:   Offset.zero,
-      ).animate(animation),
-      child: child,
-    ),
-  );
-}
 
 // ── [D3] Search bar ────────────────────────────────────────────────────────────
 // Material 3 tonal search surface. Navigates to medicines search on tap
@@ -1201,192 +1214,55 @@ class _DashboardSummaryRowState extends State<_DashboardSummaryRow> {
         ),
         const SizedBox(height: 10),
         SizedBox(
-          height: 86,
+          height: 96,
           child: ListView(
             scrollDirection: Axis.horizontal,
             physics: const BouncingScrollPhysics(),
             children: [
-              _StatChip(
+              HealthMetricCard(
                 icon:  Icons.alarm_rounded,
                 color: hc.vitaWarning,
                 label: 'Medicines',
-                value: _loaded ? _medCount : '…',
+                value: _medCount,
+                loading: !_loaded,
                 onTap: () => context.push('/home/reminders'),
               ),
               const SizedBox(width: 8),
-              _StatChip(
+              HealthMetricCard(
                 icon:  Icons.monitor_heart_rounded,
                 color: hc.vitaCritical,
                 label: 'Heart Rate',
-                value: _loaded ? _heartRate : '…',
+                value: _heartRate,
+                loading: !_loaded,
                 onTap: () => context.push('/home/health'),
               ),
               const SizedBox(width: 8),
-              _StatChip(
+              HealthMetricCard(
                 icon:  Icons.favorite_rounded,
                 color: hc.prescription,
                 label: 'Blood Pressure',
-                value: _loaded ? _bp : '…',
+                value: _bp,
+                loading: !_loaded,
                 onTap: () => context.push('/home/health'),
               ),
               const SizedBox(width: 8),
-              _StatChip(
+              HealthMetricCard(
                 icon:  Icons.water_drop_rounded,
                 color: hc.labReport,
                 label: 'Blood Sugar',
-                value: _loaded ? _bloodSugar : '…',
+                value: _bloodSugar,
+                loading: !_loaded,
                 onTap: () => context.push('/home/health'),
               ),
               const SizedBox(width: 8),
-              _StatChip(
+              HealthMetricCard(
                 icon:  Icons.scale_rounded,
                 color: hc.discharge,
                 label: 'Weight',
-                value: _loaded ? _weight : '…',
+                value: _weight,
+                loading: !_loaded,
                 onTap: () => context.push('/home/health'),
               ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-// Single stat chip in the summary row
-class _StatChip extends StatelessWidget {
-  final IconData     icon;
-  final Color        color;
-  final String       label;
-  final String       value;
-  final VoidCallback onTap;
-  const _StatChip({
-    required this.icon,
-    required this.color,
-    required this.label,
-    required this.value,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final tt = Theme.of(context).textTheme;
-    return Semantics(
-      label:  '$label: $value',
-      button: true,
-      child: _TapScaleCard(
-        onTap: onTap,
-        child: Container(
-          width:   110,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color:        cs.surface,
-            borderRadius: AppRadius.brLg,
-            boxShadow:    AppElevation.level1,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(5),
-                decoration: BoxDecoration(
-                  color:        color.withValues(alpha: 0.12),
-                  borderRadius: AppRadius.brXs,
-                ),
-                child: Icon(icon, size: 14, color: color),
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    value,
-                    style: tt.titleSmall!.copyWith(
-                      fontWeight: FontWeight.w800,
-                      fontSize:   12,
-                      height:     1.1,
-                      color:      cs.onSurface,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  Text(
-                    label,
-                    style: tt.labelSmall!.copyWith(
-                      color:    cs.onSurfaceVariant,
-                      fontSize: 10,
-                      height:   1.1,
-                    ),
-                    maxLines: 1,
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ── Section header ─────────────────────────────────────────────────────────────
-// Optional [subtitle] adds a muted description line below the title.
-class _SectionHeader extends StatelessWidget {
-  final IconData  icon;
-  final String    title;
-  final String?   subtitle;
-  final Color     color;
-  const _SectionHeader({
-    required this.icon,
-    required this.title,
-    required this.color,
-    this.subtitle,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final tt = Theme.of(context).textTheme;
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(top: 2),
-          child: Container(
-            padding: const EdgeInsets.all(5),
-            decoration: BoxDecoration(
-              color:        color.withValues(alpha: 0.12),
-              borderRadius: AppRadius.brSm,
-            ),
-            child: Icon(icon, size: 14, color: color),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: tt.titleSmall!.copyWith(
-                  color:      color,
-                  fontWeight: FontWeight.w700,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              if (subtitle != null)
-                Text(
-                  subtitle!,
-                  style: tt.bodySmall!.copyWith(
-                    color:    cs.onSurfaceVariant,
-                    fontSize: 11,
-                    height:   1.2,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
             ],
           ),
         ),
@@ -1460,7 +1336,7 @@ class _FeatureChipBar extends StatelessWidget {
         itemBuilder: (_, i) => Semantics(
           label:  chips[i].label,
           button: true,
-          child: _TapScaleCard(
+          child: TapScale(
             onTap: onTaps[i],
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
@@ -1493,42 +1369,6 @@ class _FeatureChipBar extends StatelessWidget {
   }
 }
 
-// ── [D8] Tap scale wrapper ─────────────────────────────────────────────────────
-// Gives a subtle 0.96 press-down on any tappable element. Uses
-// AnimatedScale so it leverages Flutter's optimised rasterisation cache.
-class _TapScaleCard extends StatefulWidget {
-  final Widget       child;
-  final VoidCallback onTap;
-  const _TapScaleCard({required this.child, required this.onTap});
-  @override
-  State<_TapScaleCard> createState() => _TapScaleCardState();
-}
-
-class _TapScaleCardState extends State<_TapScaleCard>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _sc;
-  late final Animation<double>    _scale;
-
-  @override
-  void initState() {
-    super.initState();
-    _sc    = AnimationController(vsync: this, duration: const Duration(milliseconds: 90));
-    _scale = Tween<double>(begin: 1.0, end: 0.955).animate(
-        CurvedAnimation(parent: _sc, curve: Curves.easeInOut));
-  }
-
-  @override
-  void dispose() { _sc.dispose(); super.dispose(); }
-
-  @override
-  Widget build(BuildContext context) => GestureDetector(
-    onTapDown:   (_) => _sc.forward(),
-    onTapUp:     (_) { _sc.reverse(); widget.onTap(); },
-    onTapCancel: ()  => _sc.reverse(),
-    child: ScaleTransition(scale: _scale, child: widget.child),
-  );
-}
-
 // ── Action card [D5][D6][D8] ───────────────────────────────────────────────────
 // Uses MainAxisAlignment.spaceBetween so the column fills the GridView cell.
 // The icon group sits at the top and text at the bottom — no overflow
@@ -1558,7 +1398,7 @@ class _ActionCard extends StatelessWidget {
     return Semantics(
       label:  '$title — $subtitle',
       button: true,
-      child: _TapScaleCard( // [D8] press-down scale
+      child: TapScale( // [D8] press-down scale
         onTap: onTap,
         child: DecoratedBox(
           decoration: BoxDecoration(
@@ -1658,7 +1498,7 @@ class _WideActionCard extends StatelessWidget {
     return Semantics(
       label:  '$title — $subtitle',
       button: true,
-      child: _TapScaleCard( // [D8]
+      child: TapScale( // [D8]
         onTap: onTap,
         child: DecoratedBox(
           decoration: BoxDecoration(

@@ -12,6 +12,7 @@ enum ClinicalDisclaimerKind {
   lab,
   interaction,
   emergency,
+  healthMetrics,
 }
 
 /// Compact, readable safety banner for clinical / AI patient-facing screens.
@@ -47,6 +48,8 @@ class ClinicalSafetyBanner extends StatelessWidget {
         return LegalCopy.interactionBanner;
       case ClinicalDisclaimerKind.emergency:
         return LegalCopy.emergencyBanner;
+      case ClinicalDisclaimerKind.healthMetrics:
+        return LegalCopy.healthMetricsBanner;
     }
   }
 
