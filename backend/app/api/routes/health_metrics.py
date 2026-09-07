@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from app.core.log_decorator import LoggedAPIRoute
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -9,7 +9,12 @@ from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.models.user import User
 from app.models.health_metric import HealthMetric
-from app.schemas.health_metric import HealthMetricCreate, HealthMetricResponse
+from app.models.family_member import FamilyMember
+from app.schemas.health_metric import (
+    HealthMetricCreate,
+    HealthMetricUpdate,
+    HealthMetricResponse,
+)
 from app.services.cache_service import CacheService, HEALTH_SUMMARY_TTL
 from app.core.logging_config import audit_log
 
@@ -69,6 +74,58 @@ METRIC_UNITS = {
     "bmi": "kg/m²",
     "temperature": "°C",
 }
+
+
+async def _require_owned_active_family_member(
+    db: AsyncSession,
+    family_member_id: int,
+    user_id: int,
+) -> FamilyMember:
+    """
+    Authoritative ownership check for family_member_id (same semantics as reminders).
+
+    Returns 404 for missing, inactive, or cross-user members — does not
+    disclose whether the id exists for another user.
+    """
+    result = await db.execute(
+        select(FamilyMember).where(
+            FamilyMember.id == family_member_id,
+            FamilyMember.user_id == user_id,
+            FamilyMember.is_active == True,  # noqa: E712
+        )
+    )
+    member = result.scalar_one_or_none()
+    if not member:
+        raise HTTPException(status_code=404, detail="Family member not found")
+    return member
+
+
+async def _get_owned_metric(
+    db: AsyncSession,
+    metric_id: int,
+    user_id: int,
+) -> HealthMetric:
+    """Load metric by id scoped to owner. Cross-user / missing → 404."""
+    result = await db.execute(
+        select(HealthMetric).where(
+            HealthMetric.id == metric_id,
+            HealthMetric.user_id == user_id,
+        )
+    )
+    metric = result.scalar_one_or_none()
+    if not metric:
+        raise HTTPException(status_code=404, detail="Health metric not found")
+    return metric
+
+
+async def _invalidate_summary_cache(
+    user_id: int,
+    family_member_id: Optional[int] = None,
+) -> None:
+    """Same base key as create; also clear family-scoped key when applicable."""
+    await CacheService.delete(f"metrics:summary:{user_id}")
+    if family_member_id is not None:
+        await CacheService.delete(f"metrics:summary:{user_id}:fm{family_member_id}")
 
 
 @router.post("/", response_model=HealthMetricResponse)
@@ -165,8 +222,17 @@ async def get_summary(
                 "recorded_at": latest.recorded_at.isoformat() if latest.recorded_at else None,
                 "trend": trend,
                 "status": _compute_status(metric_type, latest.value, latest.value2),
+                # HN-HEALTH-005 — include id so clients can open edit without a second guess.
                 "history": [
-                    {"value": r.value, "value2": r.value2, "recorded_at": r.recorded_at.isoformat() if r.recorded_at else None}
+                    {
+                        "id": r.id,
+                        "value": r.value,
+                        "value2": r.value2,
+                        "unit": r.unit,
+                        "notes": r.notes,
+                        "family_member_id": r.family_member_id,
+                        "recorded_at": r.recorded_at.isoformat() if r.recorded_at else None,
+                    }
                     for r in records
                 ],
             }
@@ -180,3 +246,65 @@ async def get_summary(
 
     await CacheService.set(cache_key, summary, ttl=HEALTH_SUMMARY_TTL)
     return summary
+
+
+@router.put("/{metric_id}", response_model=HealthMetricResponse)
+async def update_metric(
+    metric_id: int,
+    data: HealthMetricUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    HN-HEALTH-005 — edit an existing health metric owned by the authenticated user.
+
+    Ownership is enforced by id + user_id. Cross-user / missing → 404.
+    Does not diagnose, prescribe, or interpret readings clinically.
+    """
+    if not data.model_fields_set:
+        raise HTTPException(status_code=422, detail="No fields to update")
+
+    metric = await _get_owned_metric(db, metric_id, current_user.id)
+    previous_family_id = metric.family_member_id
+
+    if "value" in data.model_fields_set:
+        if data.value is None:
+            raise HTTPException(status_code=422, detail="value cannot be null")
+        metric.value = data.value
+    if "value2" in data.model_fields_set:
+        metric.value2 = data.value2
+    if "unit" in data.model_fields_set:
+        metric.unit = data.unit or METRIC_UNITS.get(metric.metric_type)
+    if "notes" in data.model_fields_set:
+        metric.notes = data.notes
+    if "recorded_at" in data.model_fields_set:
+        if data.recorded_at is None:
+            raise HTTPException(status_code=422, detail="recorded_at cannot be null")
+        metric.recorded_at = data.recorded_at
+
+    if "family_member_id" in data.model_fields_set:
+        if data.family_member_id is None:
+            metric.family_member_id = None
+        else:
+            await _require_owned_active_family_member(
+                db, data.family_member_id, current_user.id
+            )
+            metric.family_member_id = data.family_member_id
+
+    await db.commit()
+    await db.refresh(metric)
+
+    await _invalidate_summary_cache(current_user.id, previous_family_id)
+    if metric.family_member_id != previous_family_id:
+        await _invalidate_summary_cache(current_user.id, metric.family_member_id)
+
+    # Audit: identity only — do not log values/notes (PHI).
+    audit_log.info(
+        "health_metric_updated",
+        extra={
+            "user_id": current_user.id,
+            "metric_id": metric.id,
+            "metric_type": metric.metric_type,
+        },
+    )
+    return metric

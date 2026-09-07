@@ -1,11 +1,24 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:vitapulse_ai/core/network/api_client.dart';
+import 'package:vitapulse_ai/features/health_monitoring/data/health_api.dart';
 import 'package:vitapulse_ai/shared/widgets/loading_button.dart';
 import 'package:vitapulse_ai/theme/design_tokens/app_radius.dart';
 import 'package:vitapulse_ai/theme/theme_extensions.dart';
 
+/// Log a new metric, or edit an existing one (HN-HEALTH-005) when [initialMetric] is set.
 class LogMetricScreen extends StatefulWidget {
-  const LogMetricScreen({super.key});
+  /// Existing metric map from summary history / list (must include `id`).
+  final Map<String, dynamic>? initialMetric;
+
+  /// Metric type key when editing (e.g. blood_pressure). Required with [initialMetric].
+  final String? initialMetricTypeKey;
+
+  const LogMetricScreen({
+    super.key,
+    this.initialMetric,
+    this.initialMetricTypeKey,
+  });
 
   @override
   State<LogMetricScreen> createState() => _LogMetricScreenState();
@@ -68,10 +81,76 @@ class _LogMetricScreenState extends State<LogMetricScreen> {
     'Temperature': 'temperature',
   };
 
+  static const _keyToLabel = {
+    'blood_pressure': 'Blood Pressure',
+    'blood_sugar': 'Blood Sugar',
+    'heart_rate': 'Heart Rate',
+    'oxygen_saturation': 'SpO2',
+    'oxygen_level': 'SpO2',
+    'weight': 'Weight',
+    'temperature': 'Temperature',
+  };
+
+  bool get _isEdit => widget.initialMetric != null;
+
+  int? get _editMetricId {
+    final raw = widget.initialMetric?['id'];
+    if (raw is int) return raw;
+    if (raw is num) return raw.toInt();
+    return int.tryParse(raw?.toString() ?? '');
+  }
+
   @override
   void initState() {
     super.initState();
+    _prefillFromInitial();
     _loadFamilyMembers();
+  }
+
+  void _prefillFromInitial() {
+    final m = widget.initialMetric;
+    if (m == null) return;
+
+    final typeKey = (widget.initialMetricTypeKey ??
+            m['metric_type']?.toString() ??
+            'blood_pressure')
+        .toLowerCase();
+    _metricType = _keyToLabel[typeKey] ?? 'Blood Pressure';
+
+    final v = (m['value'] as num?)?.toDouble();
+    final v2 = (m['value2'] as num?)?.toDouble();
+    if (_metricType == 'Blood Pressure') {
+      if (v != null) {
+        _systolicController.text =
+            v % 1 == 0 ? v.toStringAsFixed(0) : v.toString();
+      }
+      if (v2 != null) {
+        _diastolicController.text =
+            v2 % 1 == 0 ? v2.toStringAsFixed(0) : v2.toString();
+      }
+    } else if (v != null) {
+      _valueController.text =
+          v % 1 == 0 ? v.toStringAsFixed(0) : v.toString();
+    }
+
+    final notes = m['notes']?.toString();
+    if (notes != null && notes.isNotEmpty) {
+      _notesController.text = notes;
+    }
+
+    final recorded = m['recorded_at']?.toString();
+    if (recorded != null && recorded.isNotEmpty) {
+      try {
+        _loggedAt = DateTime.parse(recorded).toLocal();
+      } catch (_) {}
+    }
+
+    final fm = m['family_member_id'];
+    if (fm is int) {
+      _selectedFamilyMemberId = fm;
+    } else if (fm is num) {
+      _selectedFamilyMemberId = fm.toInt();
+    }
   }
 
   @override
@@ -139,6 +218,35 @@ class _LogMetricScreenState extends State<LogMetricScreen> {
     return '$dateStr at $h:$m $ampm';
   }
 
+  String _friendlyError(Object e) {
+    if (e is DioException) {
+      final status = e.response?.statusCode;
+      if (status == 404) {
+        return 'This reading was not found or you cannot edit it.';
+      }
+      if (status == 401 || status == 403) {
+        return 'Your session has expired. Please sign in again.';
+      }
+      if (status == 422) {
+        return 'Please check the values and try again.';
+      }
+      if (status != null && status >= 500) {
+        return 'The server encountered a problem. Please try again.';
+      }
+      switch (e.type) {
+        case DioExceptionType.connectionError:
+        case DioExceptionType.connectionTimeout:
+        case DioExceptionType.receiveTimeout:
+          return 'Could not reach the server. Check your connection and try again.';
+        default:
+          break;
+      }
+    }
+    return _isEdit
+        ? 'Failed to update metric. Please try again.'
+        : 'Failed to log metric. Please try again.';
+  }
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -147,23 +255,51 @@ class _LogMetricScreenState extends State<LogMetricScreen> {
     final metricKey = _metricKeyMap[_metricType] ??
         _metricType.toLowerCase().replaceAll(' ', '_');
 
-    Map<String, dynamic> data = {
-      'metric_type': metricKey,
-      'recorded_at': _loggedAt.toIso8601String(),
-      'notes': _notesController.text.trim(),
-      if (_selectedFamilyMemberId != null)
-        'family_member_id': _selectedFamilyMemberId,
-    };
-
-    if (_isBP) {
-      data['value'] = double.parse(_systolicController.text.trim());
-      data['value2'] = double.parse(_diastolicController.text.trim());
-    } else {
-      data['value'] = double.parse(_valueController.text.trim());
-    }
-
     try {
-      await ApiClient.post('/health-metrics/', data: data);
+      if (_isEdit) {
+        final id = _editMetricId;
+        if (id == null) {
+          throw StateError('Missing metric id');
+        }
+        final value = _isBP
+            ? double.parse(_systolicController.text.trim())
+            : double.parse(_valueController.text.trim());
+        final value2 = _isBP
+            ? double.parse(_diastolicController.text.trim())
+            : null;
+        final notesText = _notesController.text.trim();
+
+        await HealthApi.updateMetric(
+          metricId: id,
+          value: value,
+          value2: value2,
+          clearValue2: !_isBP,
+          unit: _unit,
+          notes: notesText.isEmpty ? null : notesText,
+          clearNotes: notesText.isEmpty,
+          recordedAt: _loggedAt.toUtc().toIso8601String(),
+          familyMemberId: _selectedFamilyMemberId,
+          clearFamilyMember: _selectedFamilyMemberId == null,
+        );
+      } else {
+        final data = <String, dynamic>{
+          'metric_type': metricKey,
+          'recorded_at': _loggedAt.toIso8601String(),
+          'notes': _notesController.text.trim(),
+          if (_selectedFamilyMemberId != null)
+            'family_member_id': _selectedFamilyMemberId,
+        };
+
+        if (_isBP) {
+          data['value'] = double.parse(_systolicController.text.trim());
+          data['value2'] = double.parse(_diastolicController.text.trim());
+        } else {
+          data['value'] = double.parse(_valueController.text.trim());
+        }
+
+        await ApiClient.post('/health-metrics/', data: data);
+      }
+
       if (mounted) {
         final hc = HealthcareColors.of(context);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -172,20 +308,22 @@ class _LogMetricScreenState extends State<LogMetricScreen> {
               children: [
                 const Icon(Icons.check_circle, color: Colors.white),
                 const SizedBox(width: 8),
-                Text('$_metricType logged successfully'),
+                Text(_isEdit
+                    ? '$_metricType updated'
+                    : '$_metricType logged successfully'),
               ],
             ),
             backgroundColor: hc.vitaGood,
           ),
         );
-        Navigator.of(context).pop();
+        Navigator.of(context).pop(true);
       }
     } catch (e) {
       setState(() => _loading = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('Failed to log metric. Please try again.'),
+            content: Text(_friendlyError(e)),
             backgroundColor: Theme.of(context).colorScheme.error,
           ),
         );
@@ -197,8 +335,11 @@ class _LogMetricScreenState extends State<LogMetricScreen> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return Scaffold(
+      key: Key(_isEdit ? 'edit_metric_screen' : 'log_metric_screen'),
       backgroundColor: cs.surface,
-      appBar: AppBar(title: const Text('Log Health Metric')),
+      appBar: AppBar(
+        title: Text(_isEdit ? 'Edit Health Metric' : 'Log Health Metric'),
+      ),
       body: Form(
         key: _formKey,
         child: ListView(
@@ -213,6 +354,7 @@ class _LogMetricScreenState extends State<LogMetricScreen> {
             _buildFamilySection(),
             const SizedBox(height: 14),
             TextFormField(
+              key: const Key('metric_notes_field'),
               controller: _notesController,
               maxLines: 2,
               decoration: const InputDecoration(
@@ -222,9 +364,15 @@ class _LogMetricScreenState extends State<LogMetricScreen> {
                 alignLabelWithHint: true,
               ),
             ),
-            const SizedBox(height: 32),
+            const SizedBox(height: 12),
+            Text(
+              'Informational reading only — not a diagnosis or treatment advice.',
+              style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+            ),
+            const SizedBox(height: 24),
             LoadingButton(
-              text: 'Log $_metricType',
+              key: Key(_isEdit ? 'metric_save_edit_button' : 'metric_log_button'),
+              text: _isEdit ? 'Save Changes' : 'Log $_metricType',
               loading: _loading,
               onPressed: _submit,
             ),
@@ -262,12 +410,15 @@ class _LogMetricScreenState extends State<LogMetricScreen> {
             return ChoiceChip(
               label: Text(type),
               selected: selected,
-              onSelected: (_) => setState(() {
-                _metricType = type;
-                _valueController.clear();
-                _systolicController.clear();
-                _diastolicController.clear();
-              }),
+              // Metric type is identity — lock when editing.
+              onSelected: _isEdit
+                  ? null
+                  : (_) => setState(() {
+                        _metricType = type;
+                        _valueController.clear();
+                        _systolicController.clear();
+                        _diastolicController.clear();
+                      }),
               selectedColor: cs.primary,
               backgroundColor: Colors.white,
               labelStyle: TextStyle(
@@ -283,6 +434,13 @@ class _LogMetricScreenState extends State<LogMetricScreen> {
             );
           }).toList(),
         ),
+        if (_isEdit) ...[
+          const SizedBox(height: 8),
+          Text(
+            'Metric type cannot be changed when editing.',
+            style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+          ),
+        ],
       ],
     );
   }
@@ -332,6 +490,7 @@ class _LogMetricScreenState extends State<LogMetricScreen> {
       children: [
         Expanded(
           child: TextFormField(
+            key: const Key('metric_systolic_field'),
             controller: _systolicController,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             decoration: const InputDecoration(
@@ -359,6 +518,7 @@ class _LogMetricScreenState extends State<LogMetricScreen> {
         const SizedBox(width: 8),
         Expanded(
           child: TextFormField(
+            key: const Key('metric_diastolic_field'),
             controller: _diastolicController,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             decoration: const InputDecoration(
@@ -385,6 +545,7 @@ class _LogMetricScreenState extends State<LogMetricScreen> {
     final ranges = _getValidationRange(_metricType);
 
     return TextFormField(
+      key: const Key('metric_value_field'),
       controller: _valueController,
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
       decoration: InputDecoration(
@@ -459,6 +620,7 @@ class _LogMetricScreenState extends State<LogMetricScreen> {
         ),
         const SizedBox(height: 12),
         InkWell(
+          key: const Key('metric_datetime_picker'),
           onTap: _pickDateTime,
           borderRadius: AppRadius.brMd,
           child: Container(
@@ -527,6 +689,7 @@ class _LogMetricScreenState extends State<LogMetricScreen> {
                   borderRadius: AppRadius.brMd,
                 ),
                 child: DropdownButton<int?>(
+                  key: const Key('metric_family_member'),
                   value: _selectedFamilyMemberId,
                   isExpanded: true,
                   underline: const SizedBox(),

@@ -339,105 +339,219 @@ class _HealthMonitoringScreenState extends State<HealthMonitoringScreen> {
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: config.color.withValues(alpha: 0.1),
-                    borderRadius: AppRadius.brSm,
+      child: InkWell(
+        key: Key('health_metric_card_${config.key}'),
+        borderRadius: AppRadius.brMd,
+        onTap: readings.isEmpty
+            ? null
+            : () => _openMetricHistory(config, readings),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: config.color.withValues(alpha: 0.1),
+                      borderRadius: AppRadius.brSm,
+                    ),
+                    child: Icon(config.icon, color: config.color, size: 22),
                   ),
-                  child: Icon(config.icon, color: config.color, size: 22),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        config.label,
-                        style: tt.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                          color: cs.onSurface,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          config.label,
+                          style: tt.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: cs.onSurface,
+                          ),
                         ),
+                        Text(
+                          'Normal: ${config.normalRange} ${config.unit}',
+                          style: tt.bodySmall?.copyWith(
+                            color: cs.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            latestValue,
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 20,
+                              color: trendColor,
+                            ),
+                          ),
+                          const SizedBox(width: 2),
+                          Icon(trendIcon, color: trendColor, size: 18),
+                        ],
                       ),
                       Text(
-                        'Normal: ${config.normalRange} ${config.unit}',
+                        config.unit,
                         style: tt.bodySmall?.copyWith(
                           color: cs.onSurfaceVariant,
                         ),
                       ),
                     ],
                   ),
+                ],
+              ),
+
+              if (chartData.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                SizedBox(
+                  height: 60,
+                  child: _MiniLineChart(spots: chartData, color: config.color),
                 ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          latestValue,
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 20,
-                            color: trendColor,
-                          ),
-                        ),
-                        const SizedBox(width: 2),
-                        Icon(trendIcon, color: trendColor, size: 18),
-                      ],
-                    ),
-                    Text(
-                      config.unit,
-                      style: tt.bodySmall?.copyWith(
-                        color: cs.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
+                const SizedBox(height: 4),
+                Text(
+                  'Last ${chartData.length} readings · tap to edit',
+                  style: tt.bodySmall?.copyWith(
+                    fontSize: 10,
+                    color: cs.onSurfaceVariant,
+                  ),
+                ),
+              ] else if (latestValue == '--') ...[
+                const SizedBox(height: 8),
+                Text(
+                  'No readings yet. Tap + to log.',
+                  style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
                 ),
               ],
-            ),
 
-            if (chartData.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              SizedBox(
-                height: 60,
-                child: _MiniLineChart(spots: chartData, color: config.color),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Last ${chartData.length} readings',
-                style: tt.bodySmall?.copyWith(
-                  fontSize: 10,
-                  color: cs.onSurfaceVariant,
+              if (status != 'unknown' && status.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                StatusChip(
+                  label: status,
+                  color: _statusColor(status),
+                  icon: _statusIcon(status),
                 ),
-              ),
-            ] else if (latestValue == '--') ...[
-              const SizedBox(height: 8),
-              Text(
-                'No readings yet. Tap + to log.',
-                style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
-              ),
+              ],
             ],
-
-            if (status != 'unknown' && status.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              StatusChip(
-                label: status,
-                color: _statusColor(status),
-                icon: _statusIcon(status),
-              ),
-            ],
-          ],
+          ),
         ),
       ),
     );
+  }
+
+  Future<void> _openMetricHistory(
+    _MetricConfig config,
+    List readings,
+  ) async {
+    final cs = Theme.of(context).colorScheme;
+    final edited = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${config.label} history',
+                  style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Correct a reading if needed. Informational only — not clinical advice.',
+                  style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
+                        color: cs.onSurfaceVariant,
+                      ),
+                ),
+                const SizedBox(height: 12),
+                ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: MediaQuery.of(ctx).size.height * 0.5,
+                  ),
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: readings.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    itemBuilder: (_, i) {
+                      final raw = readings[i];
+                      final reading = raw is Map
+                          ? Map<String, dynamic>.from(raw)
+                          : <String, dynamic>{};
+                      final id = reading['id'];
+                      final value = reading['value'];
+                      final value2 = reading['value2'];
+                      final recorded = reading['recorded_at']?.toString() ?? '';
+                      String display;
+                      if (config.key == 'blood_pressure' && value2 != null) {
+                        display = '${_fmtNum(value)}/${_fmtNum(value2)}';
+                      } else {
+                        display = _fmtNum(value);
+                      }
+                      String when = recorded;
+                      try {
+                        if (recorded.isNotEmpty) {
+                          final dt = DateTime.parse(recorded).toLocal();
+                          when =
+                              '${dt.day}/${dt.month}/${dt.year} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+                        }
+                      } catch (_) {}
+
+                      return ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text('$display ${config.unit}'),
+                        subtitle: Text(when),
+                        trailing: TextButton.icon(
+                          key: Key('health_metric_edit_button_$i'),
+                          onPressed: id == null
+                              ? null
+                              : () async {
+                                  final ok = await ctx.push<bool>(
+                                    '/home/health/edit',
+                                    extra: {
+                                      'metric_type': config.key,
+                                      'metric': reading,
+                                    },
+                                  );
+                                  if (ctx.mounted) {
+                                    Navigator.of(ctx).pop(ok == true);
+                                  }
+                                },
+                          icon: const Icon(Icons.edit_outlined, size: 18),
+                          label: const Text('Edit'),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+    if (edited == true && mounted) {
+      await _loadSummary();
+    }
+  }
+
+  String _fmtNum(Object? raw) {
+    if (raw == null) return '--';
+    final v = (raw as num).toDouble();
+    return v % 1 == 0 ? v.toStringAsFixed(0) : v.toStringAsFixed(1);
   }
 
   List<FlSpot> _buildChartData(List readings, String key) {

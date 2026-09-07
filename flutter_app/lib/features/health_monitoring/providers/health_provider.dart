@@ -98,6 +98,44 @@ class HealthNotifier extends StateNotifier<HealthState> {
       return false;
     }
   }
+
+  /// HN-HEALTH-005 — persist edits then refresh summary/history.
+  Future<bool> updateMetric({
+    required int metricId,
+    required String metricType,
+    double? value,
+    double? value2,
+    bool clearValue2 = false,
+    String? unit,
+    String? notes,
+    bool clearNotes = false,
+    String? recordedAt,
+    int? familyMemberId,
+    bool clearFamilyMember = false,
+  }) async {
+    state = state.copyWith(isLogging: true, error: null);
+    try {
+      await HealthApi.updateMetric(
+        metricId: metricId,
+        value: value,
+        value2: value2,
+        clearValue2: clearValue2,
+        unit: unit,
+        notes: notes,
+        clearNotes: clearNotes,
+        recordedAt: recordedAt,
+        familyMemberId: familyMemberId,
+        clearFamilyMember: clearFamilyMember,
+      );
+      await loadSummary(familyMemberId: familyMemberId);
+      await loadHistory(metricType, familyMemberId: familyMemberId);
+      state = state.copyWith(isLogging: false);
+      return true;
+    } catch (e) {
+      state = state.copyWith(isLogging: false, error: ErrorHandler.getMessage(e));
+      return false;
+    }
+  }
 }
 
 final healthProvider =

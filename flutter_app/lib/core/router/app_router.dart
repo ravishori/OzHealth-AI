@@ -207,6 +207,28 @@ final appRouter = GoRouter(
         GoRoute(path: 'health', builder: (_, __) => const HealthMonitoringScreen()),
         GoRoute(path: 'health/log', builder: (_, __) => const LogMetricScreen()),
         GoRoute(
+          path: 'health/edit',
+          builder: (_, state) {
+            final extra = state.extra;
+            Map<String, dynamic>? metric;
+            String? metricType;
+            if (extra is Map) {
+              final raw = Map<String, dynamic>.from(extra);
+              metricType = raw['metric_type']?.toString();
+              final nested = raw['metric'];
+              if (nested is Map) {
+                metric = Map<String, dynamic>.from(nested);
+              } else {
+                metric = raw;
+              }
+            }
+            return LogMetricScreen(
+              initialMetric: metric,
+              initialMetricTypeKey: metricType,
+            );
+          },
+        ),
+        GoRoute(
           path: 'ai-chat',
           pageBuilder: (context, state) => fadeThroughPage(
             key: state.pageKey,
