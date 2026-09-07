@@ -1,22 +1,24 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:vitapulse_ai/core/utils/auth_storage.dart';
 import 'package:vitapulse_ai/features/auth/data/auth_api.dart';
+import 'package:vitapulse_ai/features/family/presentation/family_subject_switcher.dart';
 import 'package:vitapulse_ai/theme/design_tokens/app_radius.dart';
 import 'package:vitapulse_ai/theme/theme_extensions.dart';
 import 'package:vitapulse_ai/core/config/app_env.dart';
 
 /// Side navigation drawer — lists every feature in the app,
 /// organised by category, with icons and subtitles.
-class AppDrawer extends StatefulWidget {
+class AppDrawer extends ConsumerStatefulWidget {
   const AppDrawer({super.key});
 
   @override
-  State<AppDrawer> createState() => _AppDrawerState();
+  ConsumerState<AppDrawer> createState() => _AppDrawerState();
 }
 
-class _AppDrawerState extends State<AppDrawer> {
+class _AppDrawerState extends ConsumerState<AppDrawer> {
   String _name  = 'User';
   String? _imageUrl;
   bool _loggingOut = false;
@@ -117,6 +119,9 @@ class _AppDrawerState extends State<AppDrawer> {
                     'HealthNest',
                     style: TextStyle(color: Colors.white70, fontSize: 12),
                   ),
+                  const SizedBox(height: 12),
+                  // HN-FAMILY-010 — global active family subject switcher
+                  const FamilySubjectSwitcher(lightOnDark: true),
                 ],
               ),
             ),
@@ -134,12 +139,18 @@ class _AppDrawerState extends State<AppDrawer> {
                     onTap: () => _navReplace('/home'),
                   ),
 
-                  const _SectionHeader('📋  Prescriptions & Records'),
+                  const _SectionHeader('Prescriptions & Records'),
                   _DrawerItem(
                     icon: Icons.document_scanner_outlined,
                     label: 'Scan Prescription (OCR)',
                     subtitle: 'AI-powered text extraction',
                     onTap: () => _nav('/home/prescriptions/scan'),
+                  ),
+                  _DrawerItem(
+                    icon: Icons.edit_note_outlined,
+                    label: 'Manual Prescription',
+                    subtitle: 'Enter details → review → save',
+                    onTap: () => _nav('/home/prescriptions/manual'),
                   ),
                   if (AppEnv.showEprescriptions)
                     _DrawerItem(
@@ -155,7 +166,7 @@ class _AppDrawerState extends State<AppDrawer> {
                     onTap: () => _nav('/home/records'),
                   ),
 
-                  const _SectionHeader('💊  Medicines & Reminders'),
+                  const _SectionHeader('Medicines & Reminders'),
                   _DrawerItem(
                     icon: Icons.medication_outlined,
                     label: 'Medicine Search',
@@ -177,7 +188,7 @@ class _AppDrawerState extends State<AppDrawer> {
                     badge: 'AI',
                   ),
 
-                  const _SectionHeader('❤️  Health Monitoring'),
+                  const _SectionHeader('Health Monitoring'),
                   _DrawerItem(
                     icon: Icons.monitor_heart_outlined,
                     label: 'Health Monitor',
@@ -193,7 +204,7 @@ class _AppDrawerState extends State<AppDrawer> {
                     badge: 'AI',
                   ),
 
-                  const _SectionHeader('🤖  AI Diagnostic Tools'),
+                  const _SectionHeader('AI Diagnostic Tools'),
                   _DrawerItem(
                     icon: Icons.psychology_outlined,
                     label: 'AI Health Assistant',
@@ -219,7 +230,7 @@ class _AppDrawerState extends State<AppDrawer> {
                     badge: 'AI',
                   ),
 
-                  const _SectionHeader('👨‍👩‍👦  Family & Safety'),
+                  const _SectionHeader('Family & Safety'),
                   _DrawerItem(
                     icon: Icons.family_restroom_outlined,
                     label: 'Family Health Profiles',
@@ -247,7 +258,7 @@ class _AppDrawerState extends State<AppDrawer> {
                     badge: 'SOS',
                   ),
 
-                  const _SectionHeader('⚙️  Account'),
+                  const _SectionHeader('Account'),
                   _DrawerItem(
                     icon: Icons.person_outline,
                     label: 'My Profile',

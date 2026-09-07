@@ -17,6 +17,9 @@ import 'package:vitapulse_ai/features/records/presentation/upload_record_screen.
 import 'package:vitapulse_ai/features/prescriptions/presentation/prescription_scan_screen.dart';
 import 'package:vitapulse_ai/features/prescriptions/presentation/prescription_review_screen.dart';
 import 'package:vitapulse_ai/features/prescriptions/presentation/prescription_detail_screen.dart';
+import 'package:vitapulse_ai/features/prescriptions/presentation/prescription_manual_entry_screen.dart';
+import 'package:vitapulse_ai/features/prescriptions/presentation/prescription_manual_review_screen.dart';
+import 'package:vitapulse_ai/features/prescriptions/data/manual_prescription_draft.dart';
 import 'package:vitapulse_ai/features/medicines/presentation/medicine_search_screen.dart';
 import 'package:vitapulse_ai/features/medicines/presentation/medicine_detail_screen.dart';
 import 'package:vitapulse_ai/features/reminders/presentation/reminders_screen.dart';
@@ -42,6 +45,7 @@ import 'package:vitapulse_ai/features/settings/presentation/feedback_screen.dart
 import 'package:vitapulse_ai/features/notifications/presentation/notifications_screen.dart';
 import 'package:vitapulse_ai/features/legal/legal_screens.dart';
 import 'package:vitapulse_ai/core/config/app_env.dart';
+import 'package:vitapulse_ai/core/router/page_transitions.dart';
 
 final appRouter = GoRouter(
   initialLocation: '/splash',
@@ -140,6 +144,27 @@ final appRouter = GoRouter(
         GoRoute(path: 'records/upload', builder: (_, __) => const UploadRecordScreen()),
         GoRoute(path: 'prescriptions/scan', builder: (_, __) => const PrescriptionScanScreen()),
         GoRoute(
+          path: 'prescriptions/manual',
+          builder: (_, state) {
+            final extra = state.extra;
+            ManualPrescriptionDraft? draft;
+            if (extra is ManualPrescriptionDraft) draft = extra;
+            return PrescriptionManualEntryScreen(initialDraft: draft);
+          },
+        ),
+        GoRoute(
+          path: 'prescriptions/manual/review',
+          builder: (_, state) {
+            final extra = state.extra;
+            if (extra is! ManualPrescriptionDraft) {
+              return const Scaffold(
+                body: Center(child: Text('Missing prescription draft')),
+              );
+            }
+            return PrescriptionManualReviewScreen(draft: extra);
+          },
+        ),
+        GoRoute(
           path: 'prescriptions/review',
           builder: (context, state) {
             final extra = state.extra;
@@ -228,7 +253,13 @@ final appRouter = GoRouter(
             );
           },
         ),
-        GoRoute(path: 'ai-chat', builder: (_, __) => const AiChatScreen()),
+        GoRoute(
+          path: 'ai-chat',
+          pageBuilder: (context, state) => fadeThroughPage(
+            key: state.pageKey,
+            child: const AiChatScreen(),
+          ),
+        ),
         GoRoute(
           path: 'ai-chat/history',
           builder: (_, __) => const AiConversationHistoryScreen(),
@@ -238,7 +269,13 @@ final appRouter = GoRouter(
         GoRoute(path: 'interactions', builder: (_, __) => const InteractionCheckScreen()),
         GoRoute(path: 'symptoms', builder: (_, __) => const SymptomCheckerScreen()),
         GoRoute(path: 'lab-analysis', builder: (_, __) => const LabAnalysisScreen()),
-        GoRoute(path: 'insights', builder: (_, __) => const HealthInsightsScreen()),
+        GoRoute(
+          path: 'insights',
+          pageBuilder: (context, state) => fadeThroughPage(
+            key: state.pageKey,
+            child: const HealthInsightsScreen(),
+          ),
+        ),
         GoRoute(
           path: 'eprescriptions',
           redirect: (_, __) =>

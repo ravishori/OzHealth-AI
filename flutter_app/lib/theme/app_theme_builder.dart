@@ -100,18 +100,26 @@ abstract final class AppThemeBuilder {
         ),
       ),
 
-      // ── Card ───────────────────────────────────────────────────────────────
+      // ── Card — soft elevation, 16dp corners, quiet outline ─────────────────
       cardTheme: CardThemeData(
-        elevation:    0,
+        elevation:    1,
+        shadowColor:  scheme.shadow.withValues(alpha: 0.12),
         color:        scheme.surface,
-        surfaceTintColor: scheme.surfaceTint,
+        surfaceTintColor: scheme.surfaceTint.withValues(alpha: 0.04),
         shape: RoundedRectangleBorder(
           borderRadius: cardBr,
-          side: BorderSide(color: scheme.outlineVariant, width: 1),
+          side: BorderSide(
+            color: scheme.outlineVariant.withValues(alpha: 0.55),
+            width: 1,
+          ),
         ),
         margin: EdgeInsets.zero,
         clipBehavior: Clip.antiAlias,
       ),
+
+      // ── Scaffold / surfaces ────────────────────────────────────────────────
+      scaffoldBackgroundColor: scheme.surfaceContainerLowest,
+      canvasColor:             scheme.surface,
 
       // ── Buttons ────────────────────────────────────────────────────────────
       elevatedButtonTheme: ElevatedButtonThemeData(
@@ -346,6 +354,17 @@ abstract final class AppThemeBuilder {
         labelTextStyle: WidgetStateProperty.all(
           textTheme.bodyMedium?.copyWith(color: scheme.onSurface),
         ),
+      ),
+
+      // ── Page transitions (MaterialPage / go_router default pages) ──────────
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: FadeUpwardsPageTransitionsBuilder(),
+          TargetPlatform.iOS: FadeUpwardsPageTransitionsBuilder(),
+          TargetPlatform.macOS: FadeUpwardsPageTransitionsBuilder(),
+          TargetPlatform.linux: FadeUpwardsPageTransitionsBuilder(),
+          TargetPlatform.windows: FadeUpwardsPageTransitionsBuilder(),
+        },
       ),
     );
   }
