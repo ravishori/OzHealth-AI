@@ -56,6 +56,15 @@ class LegalCopy {
       'This analysis is AI-generated. Always consult your pharmacist or doctor '
       'before making any medication changes. In an emergency call 000.';
 
+  /// Health metrics / trends — recorded data only, not a diagnosis.
+  static const healthMetricsBanner =
+      'These are your recorded measurements, not a diagnosis. '
+      'Consider discussing concerning or persistent readings with a '
+      'healthcare professional. In an emergency call 000.';
+
+  static const healthMetricsEmptyHint =
+      'Add a health reading to start your history.';
+
   /// Emergency / SOS — keep dial-first honesty (Sprint 2/3 wording).
   static const emergencyBanner =
       'Medical emergency disclaimer: HealthNest does not replace '

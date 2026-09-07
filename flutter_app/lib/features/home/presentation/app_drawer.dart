@@ -227,6 +227,12 @@ class _AppDrawerState extends State<AppDrawer> {
                     onTap: () => _nav('/home/family'),
                   ),
                   _DrawerItem(
+                    icon: Icons.medication_outlined,
+                    label: 'Family Medications',
+                    subtitle: 'Reminders linked to family members',
+                    onTap: () => _nav('/home/family/medications'),
+                  ),
+                  _DrawerItem(
                     icon: Icons.location_on_outlined,
                     label: 'Nearby Services',
                     subtitle: 'Hospitals, pharmacies, clinics',
@@ -253,6 +259,24 @@ class _AppDrawerState extends State<AppDrawer> {
                     label: 'Appearance',
                     subtitle: 'Themes, text size & display',
                     onTap: () => _nav('/home/settings/appearance'),
+                  ),
+                  _DrawerItem(
+                    icon: Icons.info_outline,
+                    label: 'About',
+                    subtitle: 'App version and legal notices',
+                    onTap: () => _nav('/home/settings/about'),
+                  ),
+                  _DrawerItem(
+                    icon: Icons.help_outline,
+                    label: 'Help',
+                    subtitle: 'How to use HealthNest',
+                    onTap: () => _nav('/home/settings/help'),
+                  ),
+                  _DrawerItem(
+                    icon: Icons.feedback_outlined,
+                    label: 'Feedback',
+                    subtitle: 'Send a message with your email app',
+                    onTap: () => _nav('/home/settings/feedback'),
                   ),
                   _DrawerItem(
                     icon: Icons.privacy_tip_outlined,

@@ -7,7 +7,7 @@ from app.schemas.family import (
     FamilyMemberCreate, FamilyMemberUpdate, FamilyMemberResponse,
 )
 from app.schemas.health_metric import (
-    HealthMetricCreate, HealthMetricResponse, HealthMetricSummary,
+    HealthMetricCreate, HealthMetricUpdate, HealthMetricResponse, HealthMetricSummary,
 )
 from app.schemas.medication import (
     MedicationScheduleCreate, MedicationScheduleUpdate, MedicationScheduleResponse,
@@ -36,7 +36,7 @@ __all__ = [
     # Family
     "FamilyMemberCreate", "FamilyMemberUpdate", "FamilyMemberResponse",
     # Health Metrics
-    "HealthMetricCreate", "HealthMetricResponse", "HealthMetricSummary",
+    "HealthMetricCreate", "HealthMetricUpdate", "HealthMetricResponse", "HealthMetricSummary",
     # Medication
     "MedicationScheduleCreate", "MedicationScheduleUpdate", "MedicationScheduleResponse",
     # Medicine

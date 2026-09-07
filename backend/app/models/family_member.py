@@ -1,6 +1,7 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, Text, DateTime, Boolean
+from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Boolean
 from sqlalchemy.sql import func
 from app.core.database import Base
+from app.services.encryption_service import EncryptedText
 
 
 class FamilyMember(Base):
@@ -13,9 +14,12 @@ class FamilyMember(Base):
     age = Column(Integer, nullable=True)
     gender = Column(String(20), nullable=True)
     blood_group = Column(String(10), nullable=True)
-    medical_conditions = Column(Text, nullable=True)  # JSON array
-    allergies = Column(Text, nullable=True)  # JSON array
-    notes = Column(Text, nullable=True)
+    # Clinical PHI — same EncryptedText TypeDecorator as users.health_conditions
+    # / users.allergies / medical_records.notes. Columns are already TEXT
+    # (alembic 005); no DDL. Identity fields stay plaintext like User.
+    medical_conditions = Column(EncryptedText, nullable=True)
+    allergies = Column(EncryptedText, nullable=True)
+    notes = Column(EncryptedText, nullable=True)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

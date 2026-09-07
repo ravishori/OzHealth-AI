@@ -145,6 +145,10 @@ void main() {
         ClinicalSafetyBanner.textFor(ClinicalDisclaimerKind.interaction),
         LegalCopy.interactionBanner,
       );
+      expect(
+        ClinicalSafetyBanner.textFor(ClinicalDisclaimerKind.healthMetrics),
+        LegalCopy.healthMetricsBanner,
+      );
     });
 
     testWidgets('LEGAL-04-09 single banner instance — no accidental stack',

@@ -30,6 +30,7 @@ class UserResponse(BaseModel):
     blood_group: Optional[str] = None
     health_conditions: Optional[List[str]] = None
     allergies: Optional[List[str]] = None
+    lifestyle_preferences: dict = {}
     profile_image_url: Optional[str] = None
     suburb: Optional[str] = None
     city: Optional[str] = None

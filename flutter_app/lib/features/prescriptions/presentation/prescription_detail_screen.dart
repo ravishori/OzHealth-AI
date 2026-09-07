@@ -181,6 +181,19 @@ class _PrescriptionDetailScreenState extends State<PrescriptionDetailScreen> {
                 ),
               ],
             ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Icon(Icons.person_outline,
+                    size: 15, color: cs.onSurfaceVariant),
+                const SizedBox(width: 6),
+                Text(
+                  'Logged for: ${detail.subjectLabel}',
+                  style:
+                      TextStyle(color: cs.onSurfaceVariant, fontSize: 13),
+                ),
+              ],
+            ),
           ],
         ),
       ),
@@ -453,6 +466,8 @@ class _PrescriptionDetail {
   final List<_PrescriptionMedicine> medicines;
   final Map<String, dynamic>? allergyAlerts;
   final Map<String, dynamic>? duplicateWarnings;
+  final int? familyMemberId;
+  final String? familyMemberName;
 
   const _PrescriptionDetail({
     required this.id,
@@ -463,7 +478,16 @@ class _PrescriptionDetail {
     required this.medicines,
     this.allergyAlerts,
     this.duplicateWarnings,
+    this.familyMemberId,
+    this.familyMemberName,
   });
+
+  String get subjectLabel {
+    if (familyMemberId == null) return 'Myself';
+    final name = familyMemberName?.trim();
+    if (name != null && name.isNotEmpty) return name;
+    return 'Family member';
+  }
 
   factory _PrescriptionDetail.fromJson(Map<String, dynamic> json) {
     final rawMeds = json['medicines'] ??
@@ -490,6 +514,10 @@ class _PrescriptionDetail {
       medicines: medicines,
       allergyAlerts: json['allergy_alerts'] as Map<String, dynamic>?,
       duplicateWarnings: json['duplicate_warnings'] as Map<String, dynamic>?,
+      familyMemberId: json['family_member_id'] is num
+          ? (json['family_member_id'] as num).toInt()
+          : null,
+      familyMemberName: json['family_member_name']?.toString(),
     );
   }
 }

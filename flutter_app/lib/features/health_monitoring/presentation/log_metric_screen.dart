@@ -1,14 +1,38 @@
 import 'package:flutter/material.dart';
 import 'package:vitapulse_ai/core/network/api_client.dart';
+import 'package:vitapulse_ai/features/health_monitoring/data/health_api.dart';
 import 'package:vitapulse_ai/shared/widgets/loading_button.dart';
 import 'package:vitapulse_ai/theme/design_tokens/app_radius.dart';
 import 'package:vitapulse_ai/theme/theme_extensions.dart';
 
 class LogMetricScreen extends StatefulWidget {
-  const LogMetricScreen({super.key});
+  /// Subject selected on Health Monitor. Applied only if it matches an
+  /// owned family member after `GET /family/` loads.
+  const LogMetricScreen({
+    super.key,
+    this.initialFamilyMemberId,
+    this.existingMetric,
+  });
+
+  final int? initialFamilyMemberId;
+  final Map<String, dynamic>? existingMetric;
 
   @override
   State<LogMetricScreen> createState() => _LogMetricScreenState();
+}
+
+/// Returns [requestedId] only when it appears in [ownedMembers].
+int? ownedFamilyMemberSelection({
+  required int? requestedId,
+  required List<Map<String, dynamic>> ownedMembers,
+}) {
+  if (requestedId == null) return null;
+  for (final m in ownedMembers) {
+    final raw = m['id'];
+    if (raw == requestedId) return requestedId;
+    if (raw is num && raw.toInt() == requestedId) return requestedId;
+  }
+  return null;
 }
 
 class _LogMetricScreenState extends State<LogMetricScreen> {
@@ -68,9 +92,34 @@ class _LogMetricScreenState extends State<LogMetricScreen> {
     'Temperature': 'temperature',
   };
 
+  static const _keyToLabel = {
+    'blood_pressure': 'Blood Pressure',
+    'blood_sugar': 'Blood Sugar',
+    'heart_rate': 'Heart Rate',
+    'oxygen_saturation': 'SpO2',
+    'oxygen_level': 'SpO2',
+    'weight': 'Weight',
+    'temperature': 'Temperature',
+  };
+
+  bool get _isEditing {
+    final raw = widget.existingMetric?['id'];
+    if (raw is int) return raw > 0;
+    if (raw is num) return raw.toInt() > 0;
+    return false;
+  }
+
+  int? get _editingId {
+    final raw = widget.existingMetric?['id'];
+    if (raw is int) return raw;
+    if (raw is num) return raw.toInt();
+    return null;
+  }
+
   @override
   void initState() {
     super.initState();
+    _applyExistingMetric();
     _loadFamilyMembers();
   }
 
@@ -83,6 +132,39 @@ class _LogMetricScreenState extends State<LogMetricScreen> {
     super.dispose();
   }
 
+  void _applyExistingMetric() {
+    final m = widget.existingMetric;
+    if (m == null) return;
+    final typeKey = m['metric_type']?.toString();
+    if (typeKey != null && _keyToLabel.containsKey(typeKey)) {
+      _metricType = _keyToLabel[typeKey]!;
+    }
+    final value = m['value'];
+    final value2 = m['value2'];
+    if (_metricType == 'Blood Pressure') {
+      if (value is num) _systolicController.text = value.round().toString();
+      if (value2 is num) _diastolicController.text = value2.round().toString();
+    } else if (value is num) {
+      _valueController.text =
+          value % 1 == 0 ? value.round().toString() : value.toString();
+    }
+    final notes = m['notes']?.toString();
+    if (notes != null && notes.isNotEmpty) {
+      _notesController.text = notes;
+    }
+    final rawAt = m['recorded_at']?.toString();
+    if (rawAt != null && rawAt.isNotEmpty) {
+      final parsed = DateTime.tryParse(rawAt);
+      if (parsed != null) _loggedAt = parsed.toLocal();
+    }
+    final fam = m['family_member_id'];
+    if (fam is int) {
+      _selectedFamilyMemberId = fam;
+    } else if (fam is num) {
+      _selectedFamilyMemberId = fam.toInt();
+    }
+  }
+
   Future<void> _loadFamilyMembers() async {
     try {
       final resp = await ApiClient.get('/family/');
@@ -91,6 +173,12 @@ class _LogMetricScreenState extends State<LogMetricScreen> {
           resp.data is List ? resp.data : (resp.data['members'] ?? []),
         );
         _loadingFamily = false;
+        if (!_isEditing) {
+          _selectedFamilyMemberId = ownedFamilyMemberSelection(
+            requestedId: widget.initialFamilyMemberId,
+            ownedMembers: _familyMembers,
+          );
+        }
       });
     } catch (_) {
       setState(() => _loadingFamily = false);
@@ -100,6 +188,16 @@ class _LogMetricScreenState extends State<LogMetricScreen> {
   bool get _isBP => _metricType == 'Blood Pressure';
 
   String get _unit => _unitMap[_metricType] ?? '';
+
+  String get _editSubjectLabel {
+    if (_selectedFamilyMemberId == null) return 'Myself';
+    for (final m in _familyMembers) {
+      if (m['id'] == _selectedFamilyMemberId) {
+        return m['name']?.toString() ?? 'Family member';
+      }
+    }
+    return 'Family member';
+  }
 
   Future<void> _pickDateTime() async {
     final pickedDate = await showDatePicker(
@@ -148,12 +246,16 @@ class _LogMetricScreenState extends State<LogMetricScreen> {
         _metricType.toLowerCase().replaceAll(' ', '_');
 
     Map<String, dynamic> data = {
-      'metric_type': metricKey,
       'recorded_at': _loggedAt.toIso8601String(),
+      'unit': _unit,
       'notes': _notesController.text.trim(),
-      if (_selectedFamilyMemberId != null)
-        'family_member_id': _selectedFamilyMemberId,
     };
+    if (!_isEditing) {
+      data['metric_type'] = metricKey;
+      if (_selectedFamilyMemberId != null) {
+        data['family_member_id'] = _selectedFamilyMemberId;
+      }
+    }
 
     if (_isBP) {
       data['value'] = double.parse(_systolicController.text.trim());
@@ -163,7 +265,18 @@ class _LogMetricScreenState extends State<LogMetricScreen> {
     }
 
     try {
-      await ApiClient.post('/health-metrics/', data: data);
+      if (_isEditing) {
+        await HealthApi.updateMetric(
+          id: _editingId!,
+          value: data['value'] as double,
+          value2: data['value2'] as double?,
+          unit: _unit,
+          notes: data['notes'] as String?,
+          recordedAt: data['recorded_at'] as String,
+        );
+      } else {
+        await ApiClient.post('/health-metrics/', data: data);
+      }
       if (mounted) {
         final hc = HealthcareColors.of(context);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -172,7 +285,9 @@ class _LogMetricScreenState extends State<LogMetricScreen> {
               children: [
                 const Icon(Icons.check_circle, color: Colors.white),
                 const SizedBox(width: 8),
-                Text('$_metricType logged successfully'),
+                Text(_isEditing
+                    ? '$_metricType updated'
+                    : '$_metricType logged successfully'),
               ],
             ),
             backgroundColor: hc.vitaGood,
@@ -185,7 +300,9 @@ class _LogMetricScreenState extends State<LogMetricScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('Failed to log metric. Please try again.'),
+            content: Text(_isEditing
+                ? 'Failed to update metric. Please try again.'
+                : 'Failed to log metric. Please try again.'),
             backgroundColor: Theme.of(context).colorScheme.error,
           ),
         );
@@ -198,7 +315,9 @@ class _LogMetricScreenState extends State<LogMetricScreen> {
     final cs = Theme.of(context).colorScheme;
     return Scaffold(
       backgroundColor: cs.surface,
-      appBar: AppBar(title: const Text('Log Health Metric')),
+      appBar: AppBar(
+        title: Text(_isEditing ? 'Edit Health Metric' : 'Log Health Metric'),
+      ),
       body: Form(
         key: _formKey,
         child: ListView(
@@ -224,7 +343,7 @@ class _LogMetricScreenState extends State<LogMetricScreen> {
             ),
             const SizedBox(height: 32),
             LoadingButton(
-              text: 'Log $_metricType',
+              text: _isEditing ? 'Save changes' : 'Log $_metricType',
               loading: _loading,
               onPressed: _submit,
             ),
@@ -262,12 +381,14 @@ class _LogMetricScreenState extends State<LogMetricScreen> {
             return ChoiceChip(
               label: Text(type),
               selected: selected,
-              onSelected: (_) => setState(() {
-                _metricType = type;
-                _valueController.clear();
-                _systolicController.clear();
-                _diastolicController.clear();
-              }),
+              onSelected: _isEditing
+                  ? null
+                  : (_) => setState(() {
+                        _metricType = type;
+                        _valueController.clear();
+                        _systolicController.clear();
+                        _diastolicController.clear();
+                      }),
               selectedColor: cs.primary,
               backgroundColor: Colors.white,
               labelStyle: TextStyle(
@@ -526,23 +647,28 @@ class _LogMetricScreenState extends State<LogMetricScreen> {
                   border: Border.all(color: cs.outline),
                   borderRadius: AppRadius.brMd,
                 ),
-                child: DropdownButton<int?>(
-                  value: _selectedFamilyMemberId,
-                  isExpanded: true,
-                  underline: const SizedBox(),
-                  items: [
-                    const DropdownMenuItem<int?>(
-                        value: null, child: Text('Myself')),
-                    ..._familyMembers.map(
-                      (m) => DropdownMenuItem<int?>(
-                        value: m['id'] as int?,
-                        child: Text(m['name']?.toString() ?? 'Unknown'),
+                child: _isEditing
+                    ? Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        child: Text(_editSubjectLabel),
+                      )
+                    : DropdownButton<int?>(
+                        value: _selectedFamilyMemberId,
+                        isExpanded: true,
+                        underline: const SizedBox(),
+                        items: [
+                          const DropdownMenuItem<int?>(
+                              value: null, child: Text('Myself')),
+                          ..._familyMembers.map(
+                            (m) => DropdownMenuItem<int?>(
+                              value: m['id'] as int?,
+                              child: Text(m['name']?.toString() ?? 'Unknown'),
+                            ),
+                          ),
+                        ],
+                        onChanged: (v) =>
+                            setState(() => _selectedFamilyMemberId = v),
                       ),
-                    ),
-                  ],
-                  onChanged: (v) =>
-                      setState(() => _selectedFamilyMemberId = v),
-                ),
               ),
       ],
     );

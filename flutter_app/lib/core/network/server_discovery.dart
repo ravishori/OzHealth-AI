@@ -66,12 +66,7 @@ class ServerDiscovery {
 
     final configured = AppEnv.apiBaseUrl.trim();
     if (configured.isNotEmpty) {
-      var url = configured;
-      if (!url.contains('/api/v1')) {
-        if (url.endsWith('/')) url = url.substring(0, url.length - 1);
-        url = '$url/api/v1';
-      }
-      _resolvedUrl = url;
+      _resolvedUrl = AppEnv.normalizeApiBaseUrl(configured);
       DebugLogger.log('ServerDiscovery', 'Using compile-time API_BASE_URL');
       return _resolvedUrl!;
     }
