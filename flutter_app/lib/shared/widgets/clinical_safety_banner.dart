@@ -8,6 +8,7 @@ enum ClinicalDisclaimerKind {
   ai,
   medicine,
   prescriptionOcr,
+  prescriptionManual,
   symptom,
   lab,
   interaction,
@@ -39,6 +40,8 @@ class ClinicalSafetyBanner extends StatelessWidget {
         return LegalCopy.medicineBanner;
       case ClinicalDisclaimerKind.prescriptionOcr:
         return LegalCopy.prescriptionOcrBanner;
+      case ClinicalDisclaimerKind.prescriptionManual:
+        return LegalCopy.prescriptionManualBanner;
       case ClinicalDisclaimerKind.symptom:
         return LegalCopy.symptomBanner;
       case ClinicalDisclaimerKind.lab:

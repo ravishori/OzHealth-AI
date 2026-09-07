@@ -141,6 +141,12 @@ class _AppDrawerState extends State<AppDrawer> {
                     subtitle: 'AI-powered text extraction',
                     onTap: () => _nav('/home/prescriptions/scan'),
                   ),
+                  _DrawerItem(
+                    icon: Icons.edit_note_outlined,
+                    label: 'Manual Prescription Entry',
+                    subtitle: 'Enter medicines without OCR',
+                    onTap: () => _nav('/home/prescriptions/manual'),
+                  ),
                   if (AppEnv.showEprescriptions)
                     _DrawerItem(
                       icon: Icons.qr_code_2,

@@ -716,6 +716,11 @@ class _HealthTab extends StatelessWidget {
               color: hc.prescription,
               onTap: () => context.push('/home/prescriptions/scan')),
           _ActionCard(
+              icon: Icons.edit_note_rounded,
+              title: 'Manual Entry', subtitle: 'Type medicines',
+              color: hc.prescription,
+              onTap: () => context.push('/home/prescriptions/manual')),
+          _ActionCard(
               icon: Icons.qr_code_2_rounded,
               title: 'ePrescription', subtitle: 'Scan & validate eRx',
               color: cs.primary,
@@ -947,6 +952,11 @@ class _MoreTab extends StatelessWidget {
               title: 'Scan Prescription', subtitle: 'OCR + AI analysis',
               color: hc.prescription,
               onTap: () => context.push('/home/prescriptions/scan')),
+          _ActionCard(
+              icon: Icons.edit_note_rounded,
+              title: 'Manual Entry', subtitle: 'Type medicines',
+              color: hc.prescription,
+              onTap: () => context.push('/home/prescriptions/manual')),
           _ActionCard(
               icon: Icons.folder_copy_rounded,
               title: 'My Records', subtitle: 'Lab & prescriptions',

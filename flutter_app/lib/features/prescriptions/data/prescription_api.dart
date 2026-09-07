@@ -24,4 +24,23 @@ class PrescriptionApi {
     final resp = await ApiClient.get('/prescriptions/$id');
     return resp.data as Map<String, dynamic>;
   }
+
+  /// HN-RX-003 — create a manually entered prescription (no OCR file).
+  static Future<Map<String, dynamic>> createManualPrescription({
+    required List<Map<String, dynamic>> medicines,
+    String? doctorName,
+    String? hospital,
+    int? familyMemberId,
+  }) async {
+    final body = <String, dynamic>{
+      'medicines': medicines,
+      if (doctorName != null && doctorName.trim().isNotEmpty)
+        'doctor_name': doctorName.trim(),
+      if (hospital != null && hospital.trim().isNotEmpty)
+        'hospital': hospital.trim(),
+      if (familyMemberId != null) 'family_member_id': familyMemberId,
+    };
+    final resp = await ApiClient.post('/prescriptions/manual', data: body);
+    return resp.data as Map<String, dynamic>;
+  }
 }

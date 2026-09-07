@@ -2,15 +2,19 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Q
 from app.core.log_decorator import LoggedAPIRoute
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from typing import Optional
+from typing import Optional, Any
 import json
 import os
+import re
 
 from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.models.user import User
 from app.models.prescription import Prescription
 from app.models.medical_record import MedicalRecord
+from app.models.family_member import FamilyMember
+from app.models.medicine import Medicine
+from app.schemas.prescription import ManualPrescriptionCreate
 from app.utils.storage import save_file
 from app.services.ai_service import check_allergy_conflicts
 from app.services.medicine_safety_service import MedicineSafetyChecker
@@ -20,12 +24,263 @@ from app.services.prescription_ocr_pipeline import (
     save_temp_upload,
 )
 
+_MANUAL_SUMMARY = (
+    "Manual prescription entry — user-supplied information only. "
+    "Not OCR-derived. Not clinically verified."
+)
+
 router = APIRouter(route_class=LoggedAPIRoute)
 
 _DUP_NOTE = (
     "Possible duplicate medicines only — not a clinical diagnosis. "
     "Confirm with a doctor or pharmacist before changing or stopping medicines."
 )
+
+
+async def _require_owned_active_family_member(
+    db: AsyncSession,
+    family_member_id: int,
+    user_id: int,
+) -> FamilyMember:
+    """
+    Authoritative ownership check for family_member_id (same semantics as reminders).
+
+    Returns 404 for missing, inactive, or cross-user members — does not
+    disclose whether the id exists for another user.
+    """
+    result = await db.execute(
+        select(FamilyMember).where(
+            FamilyMember.id == family_member_id,
+            FamilyMember.user_id == user_id,
+            FamilyMember.is_active == True,  # noqa: E712
+        )
+    )
+    member = result.scalar_one_or_none()
+    if not member:
+        raise HTTPException(status_code=404, detail="Family member not found")
+    return member
+
+
+def _norm_medicine_label(value: Optional[str]) -> str:
+    """Normalize medicine labels for catalogue-name compatibility (OCR-style)."""
+    if not value:
+        return ""
+    s = value.lower().strip()
+    s = re.sub(r"[®™©]", "", s)
+    s = re.sub(r"[^a-z0-9\s/+.-]", " ", s)
+    s = re.sub(r"\s+", " ", s).strip()
+    return s
+
+
+def _labels_compatible(submitted: str, candidate: Optional[str]) -> bool:
+    """
+    Name compatibility aligned with prescription OCR catalogue candidate reasons:
+    equality, containment, or prefix — requires meaningful length (≥3).
+    """
+    a = _norm_medicine_label(submitted)
+    b = _norm_medicine_label(candidate)
+    if not a or not b or len(a) < 3 or len(b) < 3:
+        return False
+    if a == b:
+        return True
+    if a in b or b in a:
+        return True
+    if b.startswith(a) or a.startswith(b):
+        return True
+    return False
+
+
+def _manual_catalogue_name_compatible(submitted_name: str, medicine: Medicine) -> bool:
+    """
+    Verify submitted medicine text is compatible with an authoritative catalogue row.
+
+    Uses existing catalogue identity fields only (name / generic_name / brand_name /
+    normalized_name). Does not treat ID existence alone as proof of match.
+    """
+    fields = (
+        getattr(medicine, "name", None),
+        getattr(medicine, "generic_name", None),
+        getattr(medicine, "brand_name", None),
+        getattr(medicine, "normalized_name", None),
+    )
+    return any(_labels_compatible(submitted_name, f) for f in fields)
+
+
+def _parse_client_catalogue_id(raw: dict) -> Optional[int]:
+    catalog_id = raw.get("catalog_medicine_id")
+    if catalog_id is None:
+        catalog_id = raw.get("medicine_id")
+    try:
+        catalog_id = int(catalog_id) if catalog_id is not None else None
+    except (TypeError, ValueError):
+        return None
+    if catalog_id is not None and catalog_id < 1:
+        return None
+    return catalog_id
+
+
+async def _validate_manual_catalogue_medicine(
+    db: AsyncSession,
+    catalog_medicine_id: int,
+    submitted_name: str,
+) -> Medicine:
+    """
+    Authoritative catalogue identity for manual entry.
+
+    Rejects nonexistent IDs and IDs whose catalogue labels are incompatible with
+    the submitted medicine name. Server decides MATCHED — never the client.
+    """
+    if catalog_medicine_id < 1:
+        raise HTTPException(status_code=400, detail="Invalid catalogue medicine id.")
+
+    result = await db.execute(
+        select(Medicine).where(Medicine.id == catalog_medicine_id)
+    )
+    medicine = result.scalar_one_or_none()
+    if not medicine:
+        raise HTTPException(
+            status_code=400,
+            detail="Catalogue medicine not found for the supplied id.",
+        )
+
+    if not _manual_catalogue_name_compatible(submitted_name, medicine):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Catalogue medicine does not match the submitted medicine name."
+            ),
+        )
+    return medicine
+
+
+async def _prepare_manual_medicines(
+    db: AsyncSession,
+    medicines: list,
+) -> list[dict]:
+    """
+    Persist only safe user-confirmed fields with server-authoritative catalogue identity.
+
+    - No catalogue id → UNMATCHED (manual name-only still supported).
+    - Catalogue id present → must exist and be name-compatible, else 4xx.
+    - Client match_status / artg_number are untrusted and ignored.
+    """
+    sanitized: list[dict] = []
+    for m in medicines:
+        if hasattr(m, "model_dump"):
+            raw = m.model_dump()
+        elif isinstance(m, dict):
+            raw = m
+        else:
+            continue
+        name = (raw.get("name") or "").strip()
+        if not name:
+            continue
+
+        catalog_id = _parse_client_catalogue_id(raw)
+        entry: dict[str, Any] = {
+            "name": name,
+            "dosage": raw.get("dosage") or None,
+            "frequency": raw.get("frequency") or None,
+            "duration": raw.get("duration") or None,
+            "instructions": raw.get("instructions") or None,
+            "quantity": raw.get("quantity") or None,
+            "user_confirmed": True,
+            "source": "manual",
+            "entry_mode": "manual",
+        }
+
+        if catalog_id is None:
+            entry["catalog_medicine_id"] = None
+            entry["artg_number"] = None
+            entry["match_status"] = "UNMATCHED"
+            sanitized.append(entry)
+            continue
+
+        medicine = await _validate_manual_catalogue_medicine(db, catalog_id, name)
+        entry["catalog_medicine_id"] = medicine.id
+        # Authoritative catalogue ARTG only — never client-fabricated.
+        entry["artg_number"] = getattr(medicine, "tga_artg_number", None) or None
+        entry["match_status"] = "MATCHED"
+        sanitized.append(entry)
+
+    return sanitized
+
+
+def _sanitize_manual_medicines(medicines: list) -> list[dict]:
+    """
+    Sync field scrubber for tests / name-only rows.
+
+    Does NOT accept client MATCHED / catalogue identity as authoritative.
+    Catalogue IDs must be resolved via _prepare_manual_medicines (async).
+    """
+    sanitized: list[dict] = []
+    for m in medicines:
+        if hasattr(m, "model_dump"):
+            raw = m.model_dump()
+        elif isinstance(m, dict):
+            raw = m
+        else:
+            continue
+        name = (raw.get("name") or "").strip()
+        if not name:
+            continue
+        entry: dict[str, Any] = {
+            "name": name,
+            "dosage": raw.get("dosage") or None,
+            "frequency": raw.get("frequency") or None,
+            "duration": raw.get("duration") or None,
+            "instructions": raw.get("instructions") or None,
+            "quantity": raw.get("quantity") or None,
+            "catalog_medicine_id": None,
+            "artg_number": None,
+            "match_status": "UNMATCHED",
+            "user_confirmed": True,
+            "source": "manual",
+            "entry_mode": "manual",
+        }
+        sanitized.append(entry)
+    return sanitized
+
+
+def _infer_entry_mode(medicines: list, raw_ocr_text: Optional[str]) -> Optional[str]:
+    """Distinguish manual vs OCR provenance without a schema migration."""
+    if isinstance(medicines, list):
+        for m in medicines:
+            if not isinstance(m, dict):
+                continue
+            mode = (m.get("entry_mode") or "").strip().lower()
+            if mode == "manual":
+                return "manual"
+            source = (m.get("source") or "").strip().lower()
+            if source == "manual":
+                return "manual"
+    if raw_ocr_text:
+        return "ocr"
+    if isinstance(medicines, list):
+        for m in medicines:
+            if not isinstance(m, dict):
+                continue
+            if (m.get("source") or "").strip().lower() == "user_confirmed":
+                return "ocr"
+            if (m.get("entry_mode") or "").strip().lower() == "ocr":
+                return "ocr"
+    return None
+
+
+async def _allergy_alerts_for_user(current_user: User, medicine_names: list[str]):
+    allergy_check = None
+    if medicine_names and current_user.allergies:
+        try:
+            allergies = (
+                json.loads(current_user.allergies)
+                if isinstance(current_user.allergies, str)
+                else current_user.allergies
+            )
+            if isinstance(allergies, list) and allergies:
+                allergy_check = await check_allergy_conflicts(medicine_names, allergies)
+        except Exception:
+            pass
+    return allergy_check
 
 
 def _catalog_medicine_ids(medicines: list) -> list[int]:
@@ -211,6 +466,7 @@ async def confirm_prescription(
             ),
             "user_confirmed": True,
             "source": "user_confirmed",
+            "entry_mode": "ocr",
         }
         if entry["name"]:
             sanitized.append(entry)
@@ -251,18 +507,7 @@ async def confirm_prescription(
     await db.refresh(prescription)
 
     medicine_names = [m["name"] for m in sanitized]
-    allergy_check = None
-    if medicine_names and current_user.allergies:
-        try:
-            allergies = (
-                json.loads(current_user.allergies)
-                if isinstance(current_user.allergies, str)
-                else current_user.allergies
-            )
-            if isinstance(allergies, list) and allergies:
-                allergy_check = await check_allergy_conflicts(medicine_names, allergies)
-        except Exception:
-            pass
+    allergy_check = await _allergy_alerts_for_user(current_user, medicine_names)
 
     # HN-MED-007 — catalogue-grounded duplicates (not AI-as-authority).
     duplicate_check = await catalogue_duplicate_warnings(db, sanitized)
@@ -277,7 +522,60 @@ async def confirm_prescription(
         "allergy_alerts": allergy_check,
         "duplicate_warnings": duplicate_check,
         "user_confirmed": True,
+        "entry_mode": "ocr",
     }
+
+
+@router.post("/manual")
+async def create_manual_prescription(
+    body: ManualPrescriptionCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    HN-RX-003 — persist a manually entered prescription (no OCR file, no LLM).
+
+    Additional entry mode alongside POST /ocr + POST /confirm.
+    Does not upload a fake OCR file or fabricate OCR output.
+    """
+    sanitized = await _prepare_manual_medicines(db, body.medicines)
+    if not sanitized:
+        raise HTTPException(
+            status_code=400,
+            detail="At least one medicine with a name is required to save.",
+        )
+
+    family_member_id = body.family_member_id
+    if family_member_id is not None:
+        await _require_owned_active_family_member(
+            db, family_member_id, current_user.id
+        )
+
+    # No MedicalRecord / file — medical_record_id remains null (schema allows it).
+    prescription = Prescription(
+        user_id=current_user.id,
+        medical_record_id=None,
+        family_member_id=family_member_id,
+        raw_ocr_text=None,
+        extracted_medicines=json.dumps(sanitized),
+        doctor_name=body.doctor_name,
+        hospital=body.hospital,
+        ai_summary=_MANUAL_SUMMARY,
+    )
+    db.add(prescription)
+    await db.commit()
+    await db.refresh(prescription)
+
+    medicine_names = [m["name"] for m in sanitized]
+    allergy_check = await _allergy_alerts_for_user(current_user, medicine_names)
+    duplicate_check = await catalogue_duplicate_warnings(db, sanitized)
+
+    data = _to_dict(prescription)
+    data["allergy_alerts"] = allergy_check
+    data["duplicate_warnings"] = duplicate_check
+    data["user_confirmed"] = True
+    data["summary"] = prescription.ai_summary
+    return data
 
 
 @router.post("/scan")
@@ -377,6 +675,8 @@ async def get_prescription(
 
 
 def _to_dict(p: Prescription) -> dict:
+    medicines = json.loads(p.extracted_medicines) if p.extracted_medicines else []
+    raw_ocr = getattr(p, "raw_ocr_text", None)
     return {
         "id": p.id,
         "user_id": p.user_id,
@@ -385,7 +685,8 @@ def _to_dict(p: Prescription) -> dict:
         "doctor_name": p.doctor_name,
         "hospital": p.hospital,
         "prescription_date": p.prescription_date,
-        "medicines": json.loads(p.extracted_medicines) if p.extracted_medicines else [],
+        "medicines": medicines,
         "ai_summary": p.ai_summary,
+        "entry_mode": _infer_entry_mode(medicines, raw_ocr),
         "created_at": p.created_at,
     }

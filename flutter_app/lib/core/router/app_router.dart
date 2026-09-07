@@ -16,6 +16,8 @@ import 'package:vitapulse_ai/features/records/presentation/upload_record_screen.
 import 'package:vitapulse_ai/features/prescriptions/presentation/prescription_scan_screen.dart';
 import 'package:vitapulse_ai/features/prescriptions/presentation/prescription_review_screen.dart';
 import 'package:vitapulse_ai/features/prescriptions/presentation/prescription_detail_screen.dart';
+import 'package:vitapulse_ai/features/prescriptions/presentation/prescription_manual_entry_screen.dart';
+import 'package:vitapulse_ai/features/prescriptions/presentation/prescription_manual_review_screen.dart';
 import 'package:vitapulse_ai/features/medicines/presentation/medicine_search_screen.dart';
 import 'package:vitapulse_ai/features/medicines/presentation/medicine_detail_screen.dart';
 import 'package:vitapulse_ai/features/medicines/presentation/medicine_favourites_screen.dart';
@@ -131,6 +133,35 @@ final appRouter = GoRouter(
         GoRoute(path: 'records', builder: (_, __) => const RecordsScreen()),
         GoRoute(path: 'records/upload', builder: (_, __) => const UploadRecordScreen()),
         GoRoute(path: 'prescriptions/scan', builder: (_, __) => const PrescriptionScanScreen()),
+        GoRoute(
+          path: 'prescriptions/manual',
+          builder: (_, __) => const PrescriptionManualEntryScreen(),
+        ),
+        GoRoute(
+          path: 'prescriptions/manual/review',
+          builder: (context, state) {
+            final extra = state.extra;
+            if (extra is! Map) {
+              return const Scaffold(
+                body: Center(child: Text('Missing manual review data')),
+              );
+            }
+            final map = Map<String, dynamic>.from(extra);
+            final rawMeds = map['medicines'];
+            final medicines = rawMeds is List
+                ? rawMeds
+                    .map((e) => Map<String, dynamic>.from(e as Map))
+                    .toList()
+                : <Map<String, dynamic>>[];
+            final fm = map['family_member_id'];
+            final familyMemberId = fm is int ? fm : int.tryParse('$fm');
+            return PrescriptionManualReviewScreen(
+              medicines: medicines,
+              doctorName: map['doctor_name']?.toString(),
+              familyMemberId: familyMemberId,
+            );
+          },
+        ),
         GoRoute(
           path: 'prescriptions/review',
           builder: (context, state) {
