@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:vitapulse_ai/core/error/error_reporter.dart';
 import 'package:vitapulse_ai/core/network/api_client.dart';
 import 'package:vitapulse_ai/core/utils/debug_logger.dart';
+import 'package:vitapulse_ai/features/health_monitoring/data/health_api.dart';
 import 'package:vitapulse_ai/shared/widgets/status_chip.dart';
 import 'package:vitapulse_ai/theme/design_tokens/app_radius.dart';
 import 'package:vitapulse_ai/theme/theme_extensions.dart';
@@ -452,100 +453,247 @@ class _HealthMonitoringScreenState extends State<HealthMonitoringScreen> {
     List readings,
   ) async {
     final cs = Theme.of(context).colorScheme;
-    final edited = await showModalBottomSheet<bool>(
+    var items = readings
+        .map((raw) => raw is Map
+            ? Map<String, dynamic>.from(raw)
+            : <String, dynamic>{})
+        .toList();
+    var changed = false;
+
+    final result = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
       builder: (ctx) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '${config.label} history',
-                  style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) {
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${config.label} history',
+                      style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Correct or remove a reading if needed. '
+                      'Informational only — not clinical advice.',
+                      style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
+                            color: cs.onSurfaceVariant,
+                          ),
+                    ),
+                    const SizedBox(height: 12),
+                    ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxHeight: MediaQuery.of(ctx).size.height * 0.5,
                       ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Correct a reading if needed. Informational only — not clinical advice.',
-                  style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
-                        color: cs.onSurfaceVariant,
-                      ),
-                ),
-                const SizedBox(height: 12),
-                ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxHeight: MediaQuery.of(ctx).size.height * 0.5,
-                  ),
-                  child: ListView.separated(
-                    shrinkWrap: true,
-                    itemCount: readings.length,
-                    separatorBuilder: (_, __) => const Divider(height: 1),
-                    itemBuilder: (_, i) {
-                      final raw = readings[i];
-                      final reading = raw is Map
-                          ? Map<String, dynamic>.from(raw)
-                          : <String, dynamic>{};
-                      final id = reading['id'];
-                      final value = reading['value'];
-                      final value2 = reading['value2'];
-                      final recorded = reading['recorded_at']?.toString() ?? '';
-                      String display;
-                      if (config.key == 'blood_pressure' && value2 != null) {
-                        display = '${_fmtNum(value)}/${_fmtNum(value2)}';
-                      } else {
-                        display = _fmtNum(value);
-                      }
-                      String when = recorded;
-                      try {
-                        if (recorded.isNotEmpty) {
-                          final dt = DateTime.parse(recorded).toLocal();
-                          when =
-                              '${dt.day}/${dt.month}/${dt.year} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
-                        }
-                      } catch (_) {}
-
-                      return ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: Text('$display ${config.unit}'),
-                        subtitle: Text(when),
-                        trailing: TextButton.icon(
-                          key: Key('health_metric_edit_button_$i'),
-                          onPressed: id == null
-                              ? null
-                              : () async {
-                                  final ok = await ctx.push<bool>(
-                                    '/home/health/edit',
-                                    extra: {
-                                      'metric_type': config.key,
-                                      'metric': reading,
-                                    },
-                                  );
-                                  if (ctx.mounted) {
-                                    Navigator.of(ctx).pop(ok == true);
+                      child: items.isEmpty
+                          ? Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 24),
+                              child: Text(
+                                'No readings left for this metric.',
+                                style: Theme.of(ctx).textTheme.bodyMedium?.copyWith(
+                                      color: cs.onSurfaceVariant,
+                                    ),
+                              ),
+                            )
+                          : ListView.separated(
+                              shrinkWrap: true,
+                              itemCount: items.length,
+                              separatorBuilder: (_, __) =>
+                                  const Divider(height: 1),
+                              itemBuilder: (_, i) {
+                                final reading = items[i];
+                                final id = reading['id'];
+                                final value = reading['value'];
+                                final value2 = reading['value2'];
+                                final recorded =
+                                    reading['recorded_at']?.toString() ?? '';
+                                String display;
+                                if (config.key == 'blood_pressure' &&
+                                    value2 != null) {
+                                  display =
+                                      '${_fmtNum(value)}/${_fmtNum(value2)}';
+                                } else {
+                                  display = _fmtNum(value);
+                                }
+                                String when = recorded;
+                                try {
+                                  if (recorded.isNotEmpty) {
+                                    final dt =
+                                        DateTime.parse(recorded).toLocal();
+                                    when =
+                                        '${dt.day}/${dt.month}/${dt.year} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
                                   }
-                                },
-                          icon: const Icon(Icons.edit_outlined, size: 18),
-                          label: const Text('Edit'),
-                        ),
-                      );
-                    },
-                  ),
+                                } catch (_) {}
+
+                                return ListTile(
+                                  contentPadding: EdgeInsets.zero,
+                                  title: Text('$display ${config.unit}'),
+                                  subtitle: Text(when),
+                                  trailing: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      TextButton.icon(
+                                        key: Key(
+                                            'health_metric_edit_button_$i'),
+                                        onPressed: id == null
+                                            ? null
+                                            : () async {
+                                                final ok =
+                                                    await ctx.push<bool>(
+                                                  '/home/health/edit',
+                                                  extra: {
+                                                    'metric_type': config.key,
+                                                    'metric': reading,
+                                                  },
+                                                );
+                                                if (ctx.mounted &&
+                                                    ok == true) {
+                                                  Navigator.of(ctx).pop(true);
+                                                }
+                                              },
+                                        icon: const Icon(Icons.edit_outlined,
+                                            size: 18),
+                                        label: const Text('Edit'),
+                                      ),
+                                      TextButton.icon(
+                                        key: Key(
+                                            'health_metric_delete_button_$i'),
+                                        onPressed: id == null
+                                            ? null
+                                            : () async {
+                                                final deleted =
+                                                    await _confirmAndDeleteMetric(
+                                                  sheetContext: ctx,
+                                                  metricId: id is int
+                                                      ? id
+                                                      : (id as num).toInt(),
+                                                );
+                                                if (!ctx.mounted) return;
+                                                if (deleted) {
+                                                  changed = true;
+                                                  setSheetState(() {
+                                                    items = items
+                                                        .where((r) =>
+                                                            r['id'] != id)
+                                                        .toList();
+                                                  });
+                                                  ScaffoldMessenger.of(ctx)
+                                                      .showSnackBar(
+                                                    const SnackBar(
+                                                      content: Text(
+                                                        'Measurement removed',
+                                                      ),
+                                                      behavior:
+                                                          SnackBarBehavior
+                                                              .floating,
+                                                    ),
+                                                  );
+                                                }
+                                              },
+                                        icon: Icon(Icons.delete_outline,
+                                            size: 18, color: cs.error),
+                                        label: Text(
+                                          'Delete',
+                                          style: TextStyle(color: cs.error),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         );
       },
     );
+    final edited = result == true || changed;
     if (edited == true && mounted) {
       await _loadSummary();
     }
+  }
+
+  /// HN-HEALTH-006 — confirm then DELETE. Cancel makes no API call.
+  Future<bool> _confirmAndDeleteMetric({
+    required BuildContext sheetContext,
+    required int metricId,
+  }) async {
+    final confirmed = await showDialog<bool>(
+      context: sheetContext,
+      builder: (dialogCtx) => AlertDialog(
+        key: const Key('health_metric_delete_confirm_dialog'),
+        title: const Text('Delete this health measurement?'),
+        content: const Text(
+          'This removes the selected reading from your Health Monitor. '
+          'It does not change your medical condition or treatment.',
+        ),
+        actions: [
+          TextButton(
+            key: const Key('health_metric_delete_cancel'),
+            onPressed: () => Navigator.of(dialogCtx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            key: const Key('health_metric_delete_confirm'),
+            onPressed: () => Navigator.of(dialogCtx).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return false;
+
+    try {
+      await HealthApi.deleteMetric(metricId: metricId);
+      return true;
+    } catch (e) {
+      if (sheetContext.mounted) {
+        ScaffoldMessenger.of(sheetContext).showSnackBar(
+          SnackBar(
+            content: Text(_friendlyDeleteMessage(e)),
+            backgroundColor: Theme.of(sheetContext).colorScheme.error,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+      return false;
+    }
+  }
+
+  String _friendlyDeleteMessage(Object e) {
+    if (e is DioException) {
+      final status = e.response?.statusCode;
+      if (status == 404) {
+        return 'This reading was not found or you cannot delete it.';
+      }
+      if (status == 401 || status == 403) {
+        return 'Your session has expired. Please sign in again.';
+      }
+      if (status != null && status >= 500) {
+        return 'The server encountered a problem. Please try again.';
+      }
+      switch (e.type) {
+        case DioExceptionType.connectionError:
+        case DioExceptionType.connectionTimeout:
+        case DioExceptionType.receiveTimeout:
+          return 'Could not reach the server. Check your connection and try again.';
+        default:
+          break;
+      }
+    }
+    return 'Failed to delete measurement. Please try again.';
   }
 
   String _fmtNum(Object? raw) {

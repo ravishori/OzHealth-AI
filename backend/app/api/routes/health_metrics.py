@@ -308,3 +308,36 @@ async def update_metric(
         },
     )
     return metric
+
+
+@router.delete("/{metric_id}")
+async def delete_metric(
+    metric_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    HN-HEALTH-006 — hard-delete an existing health metric owned by the user.
+
+    Ownership is enforced by id + user_id. Cross-user / missing → 404.
+    Does not diagnose, prescribe, or interpret readings clinically.
+    """
+    metric = await _get_owned_metric(db, metric_id, current_user.id)
+    family_id = metric.family_member_id
+    metric_type = metric.metric_type
+
+    await db.delete(metric)
+    await db.commit()
+
+    await _invalidate_summary_cache(current_user.id, family_id)
+
+    # Audit: identity only — do not log values/notes (PHI).
+    audit_log.info(
+        "health_metric_deleted",
+        extra={
+            "user_id": current_user.id,
+            "metric_id": metric_id,
+            "metric_type": metric_type,
+        },
+    )
+    return {"message": "Health metric deleted"}

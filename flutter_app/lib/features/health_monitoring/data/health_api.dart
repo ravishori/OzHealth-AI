@@ -61,6 +61,11 @@ class HealthApi {
     return resp.data as Map<String, dynamic>;
   }
 
+  /// HN-HEALTH-006 — delete an existing owned health metric.
+  static Future<void> deleteMetric({required int metricId}) async {
+    await ApiClient.delete('/health-metrics/$metricId');
+  }
+
   /// Fetch metric history. [days] filters to last N days.
   static Future<List<dynamic>> getMetrics({
     String? metricType,

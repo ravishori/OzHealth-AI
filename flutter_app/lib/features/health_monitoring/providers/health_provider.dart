@@ -136,6 +136,25 @@ class HealthNotifier extends StateNotifier<HealthState> {
       return false;
     }
   }
+
+  /// HN-HEALTH-006 — delete then refresh summary/history.
+  Future<bool> deleteMetric({
+    required int metricId,
+    required String metricType,
+    int? familyMemberId,
+  }) async {
+    state = state.copyWith(isLogging: true, error: null);
+    try {
+      await HealthApi.deleteMetric(metricId: metricId);
+      await loadSummary(familyMemberId: familyMemberId);
+      await loadHistory(metricType, familyMemberId: familyMemberId);
+      state = state.copyWith(isLogging: false);
+      return true;
+    } catch (e) {
+      state = state.copyWith(isLogging: false, error: ErrorHandler.getMessage(e));
+      return false;
+    }
+  }
 }
 
 final healthProvider =
