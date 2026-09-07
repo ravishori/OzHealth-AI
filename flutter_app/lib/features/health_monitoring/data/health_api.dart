@@ -5,11 +5,11 @@ class HealthApi {
   static Future<Map<String, dynamic>> logMetric({
     required String metricType,
     required double value,
-    double? value2,         // diastolic BP
+    double? value2, // diastolic BP
     String? unit,
     String? notes,
     int? familyMemberId,
-    String? recordedAt,    // ISO-8601 string; defaults to now on backend
+    String? recordedAt, // ISO-8601 string; defaults to now on backend
   }) async {
     final resp = await ApiClient.post('/health-metrics/', data: {
       'metric_type': metricType,
@@ -20,6 +20,44 @@ class HealthApi {
       if (familyMemberId != null) 'family_member_id': familyMemberId,
       if (recordedAt != null) 'recorded_at': recordedAt,
     });
+    return resp.data as Map<String, dynamic>;
+  }
+
+  /// HN-HEALTH-005 — update an existing owned health metric.
+  /// Does not send user_id or other server-owned fields.
+  static Future<Map<String, dynamic>> updateMetric({
+    required int metricId,
+    double? value,
+    double? value2,
+    bool clearValue2 = false,
+    String? unit,
+    String? notes,
+    bool clearNotes = false,
+    String? recordedAt,
+    int? familyMemberId,
+    bool clearFamilyMember = false,
+  }) async {
+    final data = <String, dynamic>{};
+    if (value != null) data['value'] = value;
+    if (clearValue2) {
+      data['value2'] = null;
+    } else if (value2 != null) {
+      data['value2'] = value2;
+    }
+    if (unit != null) data['unit'] = unit;
+    if (clearNotes) {
+      data['notes'] = null;
+    } else if (notes != null) {
+      data['notes'] = notes;
+    }
+    if (recordedAt != null) data['recorded_at'] = recordedAt;
+    if (clearFamilyMember) {
+      data['family_member_id'] = null;
+    } else if (familyMemberId != null) {
+      data['family_member_id'] = familyMemberId;
+    }
+
+    final resp = await ApiClient.put('/health-metrics/$metricId', data: data);
     return resp.data as Map<String, dynamic>;
   }
 
