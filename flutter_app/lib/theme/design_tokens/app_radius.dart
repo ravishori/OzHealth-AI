@@ -24,21 +24,22 @@ abstract final class AppRadius {
   static const BorderRadius brFull   = BorderRadius.all(Radius.circular(full));
   static const BorderRadius brTop    = BorderRadius.vertical(top: Radius.circular(xxxl));
 
-  // Component defaults
-  static const BorderRadius button      = brMd;
+  // Component defaults — 16dp corners are the healthcare product default
+  static const BorderRadius button      = brLg;
   static const BorderRadius chip        = brSm;
   static const BorderRadius dialog      = brXxxl;
   static const BorderRadius bottomSheet = brTop;
-  static const BorderRadius textField   = brMd;
+  static const BorderRadius textField   = brLg;
   static const BorderRadius badge       = brFull;
   static const BorderRadius fab         = brLg;
   static const BorderRadius navBar      = brNone;
+  static const BorderRadius card        = brLg;
 
-  // Card radius driven by user preference
+  // Card radius driven by user preference (Appearance settings)
   static BorderRadius cardRadius(AppCardStyle style) => switch (style) {
-    AppCardStyle.rounded => brLg,
-    AppCardStyle.square  => brXs,
-    AppCardStyle.soft    => brXxl,
+    AppCardStyle.rounded => brLg,   // 16 — default premium
+    AppCardStyle.square  => brSm,   // 8
+    AppCardStyle.soft    => brXxl,  // 24
   };
 }
 

@@ -36,6 +36,7 @@ import 'package:vitapulse_ai/features/eprescriptions/presentation/eprescription_
 import 'package:vitapulse_ai/features/settings/presentation/appearance_screen.dart';
 import 'package:vitapulse_ai/features/legal/legal_screens.dart';
 import 'package:vitapulse_ai/core/config/app_env.dart';
+import 'package:vitapulse_ai/core/router/page_transitions.dart';
 
 final appRouter = GoRouter(
   initialLocation: '/splash',
@@ -169,7 +170,13 @@ final appRouter = GoRouter(
         ),
         GoRoute(path: 'health', builder: (_, __) => const HealthMonitoringScreen()),
         GoRoute(path: 'health/log', builder: (_, __) => const LogMetricScreen()),
-        GoRoute(path: 'ai-chat', builder: (_, __) => const AiChatScreen()),
+        GoRoute(
+          path: 'ai-chat',
+          pageBuilder: (context, state) => fadeThroughPage(
+            key: state.pageKey,
+            child: const AiChatScreen(),
+          ),
+        ),
         GoRoute(
           path: 'ai-chat/history',
           builder: (_, __) => const AiConversationHistoryScreen(),
@@ -179,7 +186,13 @@ final appRouter = GoRouter(
         GoRoute(path: 'interactions', builder: (_, __) => const InteractionCheckScreen()),
         GoRoute(path: 'symptoms', builder: (_, __) => const SymptomCheckerScreen()),
         GoRoute(path: 'lab-analysis', builder: (_, __) => const LabAnalysisScreen()),
-        GoRoute(path: 'insights', builder: (_, __) => const HealthInsightsScreen()),
+        GoRoute(
+          path: 'insights',
+          pageBuilder: (context, state) => fadeThroughPage(
+            key: state.pageKey,
+            child: const HealthInsightsScreen(),
+          ),
+        ),
         GoRoute(
           path: 'eprescriptions',
           redirect: (_, __) =>
