@@ -1,8 +1,10 @@
 """
 Minimum prescription OCR pipeline:
   upload → OCR → extract medicine lines → catalog medicine search → candidates
+  (+ deterministic doctor/prescriber prefill — HN-OCR-006)
 
 No diagnosis, interactions, chatbot, or medical advice.
+Doctor extraction is rule-based only (no LLM).
 """
 from __future__ import annotations
 
@@ -20,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.services.catalog_medicine_search_service import CatalogMedicineSearchService
 from app.services.ocr_confidence import build_ocr_confidence_payload
 from app.services.ocr_provider import OcrResult, get_ocr_provider
+from app.services.prescription_doctor_extractor import extract_doctor_name
 from app.services.prescription_medicine_extractor import (
     ExtractedMedicineLine,
     extract_medicine_candidates,
@@ -129,6 +132,10 @@ class PrescriptionOcrPipeline:
         extracted = (
             extract_medicine_candidates(ocr.text) if ocr.available else []
         )
+        # HN-OCR-006 — deterministic doctor/prescriber prefill (non-LLM).
+        doctor_name = (
+            extract_doctor_name(ocr.text) if ocr.available else None
+        )
 
         medicines_out: list[dict[str, Any]] = []
         matched = 0
@@ -195,6 +202,8 @@ class PrescriptionOcrPipeline:
         return {
             "prescription_id": prescription_id,
             "original_filename": Path(original_filename or path.name).name,
+            # Prefill only — user review/edit on confirm is authoritative.
+            "doctor_name": doctor_name,
             "ocr": {
                 "text": ocr.text if ocr.available else "",
                 "confidence": conf_payload["confidence"],
