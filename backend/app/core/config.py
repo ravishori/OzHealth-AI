@@ -1,6 +1,9 @@
 from pydantic_settings import BaseSettings
-from typing import List
+from typing import List, Optional
 import json
+import logging
+
+_logger = logging.getLogger(__name__)
 
 
 class Settings(BaseSettings):
@@ -25,6 +28,11 @@ class Settings(BaseSettings):
 
     APP_NAME: str = "HealthNest"
     APP_VERSION: str = "1.0.0"
+    # development | staging | production | test
+    ENVIRONMENT: str = "development"
+    # Optional override. Hosted (staging/production) never auto-creates schema.
+    # Unset → create_all only when ENVIRONMENT is development/test.
+    AUTO_CREATE_TABLES: Optional[bool] = None
     DEBUG: bool = False
     CORS_ORIGINS: str = '["http://localhost:3000"]'
 
@@ -89,6 +97,73 @@ class Settings(BaseSettings):
                 "http://127.0.0.1:8080",
             ]
         return origins
+
+    def environment_name(self) -> str:
+        return (self.ENVIRONMENT or "development").strip().lower()
+
+    def is_hosted_environment(self) -> bool:
+        return self.environment_name() in {"staging", "production"}
+
+    def should_auto_create_tables(self) -> bool:
+        """
+        Schema must come from Alembic in staging/production.
+        create_all is allowed only for local development/test convenience.
+        """
+        if self.is_hosted_environment():
+            return False
+        if self.AUTO_CREATE_TABLES is not None:
+            return bool(self.AUTO_CREATE_TABLES)
+        return self.environment_name() in {"development", "test", "dev"}
+
+    def validate_for_startup(self) -> None:
+        """
+        Fail fast on hosted misconfiguration. Never logs secret values.
+        """
+        env = self.environment_name()
+        missing: List[str] = []
+        if not self.DATABASE_URL:
+            missing.append("DATABASE_URL")
+        if not self.SYNC_DATABASE_URL:
+            missing.append("SYNC_DATABASE_URL")
+        if not self.SECRET_KEY:
+            missing.append("SECRET_KEY")
+        if missing:
+            raise RuntimeError(
+                f"Missing required settings for ENVIRONMENT={env}: {', '.join(missing)}"
+            )
+
+        if not self.is_hosted_environment():
+            return
+
+        problems: List[str] = []
+        if self.DEBUG:
+            problems.append("DEBUG must be false in staging/production")
+        if not (self.ENCRYPTION_KEY or "").strip():
+            problems.append("ENCRYPTION_KEY must be set in staging/production")
+        weak_secret = self.SECRET_KEY.strip().lower() in {
+            "",
+            "changeme",
+            "secret",
+            "replace_with_a_long_random_secret",
+            "test-secret-key-for-unit-tests-only",
+        }
+        if weak_secret or len(self.SECRET_KEY.strip()) < 32:
+            problems.append("SECRET_KEY must be a strong non-placeholder value (len>=32)")
+        if self.AUTO_CREATE_TABLES is True:
+            problems.append(
+                "AUTO_CREATE_TABLES cannot be enabled in staging/production "
+                "(use alembic upgrade head)"
+            )
+        if problems:
+            raise RuntimeError(
+                "Invalid staging/production configuration: " + "; ".join(problems)
+            )
+
+        _logger.info(
+            "Hosted environment startup validation passed env=%s auto_create_tables=%s",
+            env,
+            self.should_auto_create_tables(),
+        )
 
     class Config:
         env_file = ".env"
