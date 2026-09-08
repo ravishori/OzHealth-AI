@@ -1,4 +1,4 @@
-"""HN-MEDMGMT-006 — Medication History (MEDHIST-01..15)."""
+"""HN-MEDMGMT-006 — Medication History (MEDHIST-01..22)."""
 from __future__ import annotations
 
 import os
@@ -860,3 +860,180 @@ async def test_filter_by_schedule_requires_ownership():
             "/api/v1/medication-history/?medication_schedule_id=20"
         )
     assert resp.status_code == 404
+
+
+# ── MEDHIST-16 recorded_at server-controlled ───────────────────────────────────
+
+
+@pytest.mark.anyio
+async def test_medhist_16_recorded_at_server_controlled():
+    """MEDHIST-16 — recorded_at is set by server; client cannot supply it."""
+    user = _user(1)
+    app, store = _app(user, DoseStore(schedules={10: _schedule(10, 1)}))
+    transport = ASGITransport(app=app)
+    client_ts = "2099-01-01T00:00:00+00:00"
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.post(
+            "/api/v1/medication-history/",
+            json={
+                "medication_schedule_id": 10,
+                "status": "taken",
+                "scheduled_for": _when().isoformat(),
+                "recorded_at": client_ts,
+                "user_id": 999,
+            },
+        )
+    assert resp.status_code == 201
+    body = resp.json()
+    assert body["recorded_at"] != client_ts
+    assert "2099" not in body["recorded_at"]
+    assert body.get("user_id") is None or body.get("user_id") != 999
+    # Ownership remains authenticated user.
+    assert list(store.events.values())[0].user_id == 1
+
+
+# ── MEDHIST-17 / 18 history owner-scoped + ordering ───────────────────────────
+
+
+@pytest.mark.anyio
+async def test_medhist_17_18_history_owner_scoped_and_ordered():
+    """MEDHIST-17/18 — list is owner-scoped and newest recorded_at first."""
+    user = _user(1)
+    store = DoseStore(schedules={10: _schedule(10, 1), 20: _schedule(20, 2)})
+    older = _when(day=1)
+    newer = _when(day=5)
+    store.events[1] = _event(
+        1, user_id=1, schedule_id=10, status="taken", scheduled_for=older, recorded_at=older
+    )
+    store.events[2] = _event(
+        2, user_id=1, schedule_id=10, status="skipped", scheduled_for=newer, recorded_at=newer
+    )
+    store.events[3] = _event(
+        3, user_id=2, schedule_id=20, status="taken", scheduled_for=newer, recorded_at=newer
+    )
+    app, _ = _app(user, store)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.get("/api/v1/medication-history/")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert all(e["medication_schedule_id"] != 20 for e in body)
+    assert [e["id"] for e in body] == [2, 1]
+
+
+# ── MEDHIST-19 filtering ──────────────────────────────────────────────────────
+
+
+@pytest.mark.anyio
+async def test_medhist_19_history_filtering_by_schedule():
+    """MEDHIST-19 — schedule filter works for owned schedules only."""
+    user = _user(1)
+    store = DoseStore(
+        schedules={10: _schedule(10, 1), 11: _schedule(11, 1, medicine="Ibuprofen")}
+    )
+    store.events[1] = _event(
+        1, user_id=1, schedule_id=10, status="taken", scheduled_for=_when(day=1)
+    )
+    store.events[2] = _event(
+        2, user_id=1, schedule_id=11, status="skipped", scheduled_for=_when(day=2)
+    )
+    app, _ = _app(user, store)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.get(
+            "/api/v1/medication-history/?medication_schedule_id=11"
+        )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body) == 1
+    assert body[0]["medication_schedule_id"] == 11
+    assert body[0]["medicine_name"] == "Ibuprofen"
+
+
+# ── MEDHIST-20 / 21 summary honesty ───────────────────────────────────────────
+
+
+@pytest.mark.anyio
+async def test_medhist_20_21_summary_uses_events_no_false_100():
+    """MEDHIST-20/21 — summary from stored events; empty → adherence_percent null."""
+    user = _user(1)
+    empty_app, _ = _app(user, DoseStore(schedules={10: _schedule(10, 1)}))
+    transport = ASGITransport(app=empty_app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        empty = await client.get("/api/v1/medication-history/summary")
+    assert empty.status_code == 200
+    empty_body = empty.json()
+    assert empty_body["total"] == 0
+    assert empty_body["taken"] == 0
+    assert empty_body["adherence_percent"] is None
+    assert empty_body["adherence_percent"] != 100
+    assert empty_body["adherence_percent"] != 100.0
+
+    store = DoseStore(schedules={10: _schedule(10, 1)})
+    store.events[1] = _event(
+        1, user_id=1, schedule_id=10, status="taken", scheduled_for=_when(day=1)
+    )
+    store.events[2] = _event(
+        2, user_id=1, schedule_id=10, status="missed", scheduled_for=_when(day=2)
+    )
+    app, _ = _app(user, store)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.get("/api/v1/medication-history/summary")
+    body = resp.json()
+    assert body["taken"] == 1
+    assert body["missed"] == 1
+    assert body["total"] == 2
+    assert body["adherence_percent"] == 50.0
+
+
+# ── MEDHIST-22 privacy logging + migration schema ─────────────────────────────
+
+
+@pytest.mark.anyio
+async def test_medhist_22_no_sensitive_logging_and_schema_contract(caplog):
+    """MEDHIST-22 — create audit path does not log medicine names / status PHI."""
+    import logging
+
+    user = _user(1)
+    store = DoseStore(schedules={10: _schedule(10, 1, medicine="SecretMedXYZ")})
+    app, _ = _app(user, store)
+    with caplog.at_level(logging.INFO):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.post(
+                "/api/v1/medication-history/",
+                json={
+                    "medication_schedule_id": 10,
+                    "status": "taken",
+                    "scheduled_for": _when().isoformat(),
+                },
+            )
+    assert resp.status_code == 201
+    joined = " ".join(r.getMessage() for r in caplog.records)
+    assert "SecretMedXYZ" not in joined
+    assert "500mg" not in joined
+
+    # Migration / model contract (no live DB required).
+    from pathlib import Path
+
+    mig = Path(__file__).resolve().parents[1] / "alembic/versions/018_add_medication_dose_events.py"
+    text = mig.read_text()
+    assert 'revision = "018"' in text
+    assert 'down_revision = "017"' in text
+    assert "medication_dose_events" in text
+    assert "uq_med_dose_events_schedule_scheduled_for" in text
+    assert "ck_med_dose_events_status" in text
+    assert "taken" in text and "skipped" in text and "missed" in text
+    assert MedicationDoseEvent.__tablename__ == "medication_dose_events"
+    assert "uq_med_dose_events_schedule_scheduled_for" in {
+        c.name for c in MedicationDoseEvent.__table__.constraints if hasattr(c, "name") and c.name
+    }
+
+
+def test_medhist_create_schema_ignores_client_owner_fields():
+    """Client user_id / recorded_at are not part of create schema."""
+    fields = MedicationDoseEventCreate.model_fields
+    assert "user_id" not in fields
+    assert "recorded_at" not in fields
+    assert "family_member_id" not in fields

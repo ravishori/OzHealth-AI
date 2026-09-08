@@ -363,4 +363,61 @@ void main() {
     expect(historySrc.contains('Missed'), isTrue);
     expect(historySrc.contains('_submitting'), isTrue);
   });
+
+  testWidgets('MEDHIST-F11 family subject context available via API filter',
+      (tester) async {
+    // Screen displays medicine timeline; API supports family_member_id filter
+    // without letting the client invent ownership.
+    expect(apiSrc.contains('familyMemberId'), isTrue);
+    expect(apiSrc.contains('family_member_id'), isTrue);
+    expect(apiSrc.contains("'user_id'"), isFalse);
+    expect(historySrc.contains('MedicationHistoryScreen'), isTrue);
+    // History does not accept a client owner override parameter.
+    expect(historySrc.contains('ownerId'), isFalse);
+    expect(historySrc.contains('userId'), isFalse);
+  });
+
+  testWidgets('MEDHIST-F12 history does not silently switch family subjects',
+      (tester) async {
+    expect(historySrc.contains('clearLocalHistory'), isTrue);
+    // Filter is explicit schedule selection — not an implicit subject swap.
+    expect(historySrc.contains('_filterScheduleId'), isTrue);
+    expect(historySrc.contains('family_member_id='), isFalse);
+    expect(historySrc.contains('?user_id='), isFalse);
+  });
+
+  testWidgets('MEDHIST-F13 no-event state is not rendered as 100% adherence',
+      (tester) async {
+    await tester.pumpWidget(
+      _wrap(
+        MedicationHistoryScreen(
+          loadHistory: ({medicationScheduleId}) async => [],
+          loadSummary: ({medicationScheduleId}) async => {
+            'taken': 0,
+            'skipped': 0,
+            'missed': 0,
+            'total': 0,
+            'adherence_percent': null,
+          },
+          loadReminders: () async => [],
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('medication_adherence_summary')), findsOneWidget);
+    expect(find.text('—'), findsWidgets);
+    expect(find.text('100%'), findsNothing);
+    expect(find.text('100.0%'), findsNothing);
+    expect(historySrc.contains("pct == null ? '—'"), isTrue);
+  });
+
+  test('MEDHIST-F Missed action wiring + summary refresh after record', () {
+    expect(historySrc.contains("'missed'"), isTrue);
+    expect(historySrc.contains('_recordStatus'), isTrue);
+    expect(historySrc.contains('await _reload()'), isTrue);
+    expect(historySrc.contains('loadSummary'), isTrue);
+    expect(historySrc.toLowerCase().contains('stop medication'), isFalse);
+    expect(historySrc.toLowerCase().contains('double the next dose'), isFalse);
+    expect(RegExp(r'\bai\b', caseSensitive: false).hasMatch(historySrc), isFalse);
+  });
 }
