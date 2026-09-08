@@ -17,6 +17,7 @@ from app.services.ai_service import (
     translate_health_info,
     _ai_available,
 )
+from app.services.ai_quota_service import AiQuotaService
 from app.services.alert_service import send_alert_email, log_error_to_db
 
 router = APIRouter(route_class=LoggedAPIRoute)
@@ -40,6 +41,9 @@ async def chat(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    # HN-AI-009: admit before any AI provider work (authenticated user only).
+    await AiQuotaService.enforce(current_user.id)
+
     # Load or create conversation
     messages = []
     conversation = None
@@ -176,6 +180,9 @@ async def get_health_guidance(
     req: HealthGuidanceRequest,
     current_user: User = Depends(get_current_user),
 ):
+    # HN-AI-009: admit before provider call; identity from JWT principal only.
+    await AiQuotaService.enforce(current_user.id)
+
     user_context = {
         "name": current_user.name,
         "age": current_user.age,

@@ -61,6 +61,12 @@ class Settings(BaseSettings):
     OTP_VERIFY_LIMIT: int = 20       # max failed verifications (relaxed for dev)
     OTP_VERIFY_WINDOW: int = 300     # seconds (5 min window)
 
+    # HN-AI-009 — per-user AI product quota (implementation defaults; not a
+    # regulatory/product-policy certification). Override via env in deploy.
+    # Applies to authenticated AI Health Assistant provider-consuming routes.
+    AI_QUOTA_LIMIT: int = 40                 # max AI requests per user per window
+    AI_QUOTA_WINDOW_SECONDS: int = 86400      # rolling window (24h)
+
     # ── ePrescription — eRx Script Exchange (NPDS) ───────────────────────────
     # Set EPRESCRIPTION_MOCK_MODE=false and supply ERX_API_KEY for live integration.
     # Obtain credentials from: https://erx.com.au
