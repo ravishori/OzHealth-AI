@@ -1,8 +1,11 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:vitapulse_ai/l10n/app_localizations.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:vitapulse_ai/core/locale/locale_controller.dart';
 import 'package:vitapulse_ai/features/auth/presentation/screens/welcome_screen.dart';
 import 'package:vitapulse_ai/features/legal/legal_screens.dart';
 import 'package:vitapulse_ai/features/onboarding/onboarding_prefs.dart';
@@ -13,6 +16,14 @@ import 'package:vitapulse_ai/theme/theme_manager.dart';
 Widget _theme(Widget child) {
   return MaterialApp(
     theme: AppThemeBuilder.light(const AppThemeSettings()),
+    supportedLocales: kAppSupportedLocales,
+    localeResolutionCallback: localeResolution,
+    localizationsDelegates: const [
+      AppLocalizations.delegate,
+      GlobalMaterialLocalizations.delegate,
+      GlobalWidgetsLocalizations.delegate,
+      GlobalCupertinoLocalizations.delegate,
+    ],
     home: child,
   );
 }

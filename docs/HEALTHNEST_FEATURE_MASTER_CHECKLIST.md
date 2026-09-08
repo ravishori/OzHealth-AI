@@ -442,7 +442,7 @@ Do **not** claim regulatory compliance from this track alone.
 | HN-FUTURE-003 | Wave 3 | Y. Future / Planned Features | Health insights | Partially Implemented | 🟡 UNDER DEVELOPMENT | P2 | V1.2 | Claude; Remaining: Grounding | PARTIALLY VERIFIED | STATUS.md | `insights` routes + screen |
 | HN-FUTURE-004 | Wave 3 | Y. Future / Planned Features | Interaction checker screen | Partially Implemented | 🟡 UNDER DEVELOPMENT | P1 | V1.2 | Claude; Remaining: Authoritative interaction source | PARTIALLY VERIFIED | STATUS.md | AI-based; not DB interactions table |
 | HN-FUTURE-005 | Wave 3 | Y. Future / Planned Features | Wearable sync | Not Implemented | 🟠 PENDING | P3 | V1.2 | Health Connect; Remaining: Future | NOT VERIFIED | STATUS.md | Manual metrics only |
-| HN-FUTURE-006 | Wave 3 | Y. Future / Planned Features | Multi-language | Partially Implemented | 🟡 UNDER DEVELOPMENT | P3 | V1.2 | Remaining: flutter_localizations | PARTIALLY VERIFIED | STATUS.md | `insights/translate` exists; not full i18n |
+| HN-FUTURE-006 | Wave 3 | Y. Future / Planned Features | Multi-language | Implemented & Working | 🟢 COMPLETED | P3 | V1.2 | Remaining: Android locale E2E; broader string coverage | PARTIALLY VERIFIED | FUT06 host tests | flutter_localizations + ARB en/hi/mr (AI product languages); Appearance language selector + Hive `app_locale`; welcome/drawer/settings wired; clinical/emergency English retained; FUT06-FL host PASS; Android FUT06-AND PENDING |
 
 ---
 

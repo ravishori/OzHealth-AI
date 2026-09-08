@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:vitapulse_ai/l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:vitapulse_ai/core/locale/locale_controller.dart';
 import 'package:vitapulse_ai/theme/design_tokens/app_radius.dart';
 import 'package:vitapulse_ai/theme/design_tokens/app_spacing.dart';
 import 'package:vitapulse_ai/theme/design_tokens/app_typography.dart';
@@ -14,16 +16,87 @@ class AppearanceScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(themeManagerProvider);
     final manager  = ref.read(themeManagerProvider.notifier);
+    final locale   = ref.watch(localeControllerProvider);
+    final localeCtl = ref.read(localeControllerProvider.notifier);
+    final l10n     = AppLocalizations.of(context);
     final cs       = Theme.of(context).colorScheme;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Appearance'),
+        title: Text(l10n.appearance),
         centerTitle: false,
       ),
       body: ListView(
         padding: AppSpacing.screenPadding,
         children: [
+          // ── Language (HN-FUTURE-006) ───────────────────────────────────────
+          _SectionHeader(l10n.language),
+          const SizedBox(height: AppSpacing.x2),
+          Text(
+            l10n.languageSubtitle,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: cs.onSurfaceVariant,
+                ),
+          ),
+          const SizedBox(height: AppSpacing.x3),
+          Semantics(
+            label: l10n.language,
+            child: Column(
+              children: [
+                RadioListTile<String?>(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(l10n.languageSystem),
+                  value: null,
+                  groupValue: locale?.languageCode,
+                  onChanged: (_) async {
+                    await localeCtl.useSystemLocale();
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text(l10n.settingsSaved)),
+                      );
+                    }
+                  },
+                ),
+                RadioListTile<String?>(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(l10n.languageEnglish),
+                  value: 'en',
+                  groupValue: locale?.languageCode,
+                  onChanged: (v) => _onLanguageSelected(context, localeCtl, l10n, v),
+                ),
+                RadioListTile<String?>(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(l10n.languageHindi),
+                  value: 'hi',
+                  groupValue: locale?.languageCode,
+                  onChanged: (v) => _onLanguageSelected(context, localeCtl, l10n, v),
+                ),
+                RadioListTile<String?>(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(l10n.languageMarathi),
+                  value: 'mr',
+                  groupValue: locale?.languageCode,
+                  onChanged: (v) => _onLanguageSelected(context, localeCtl, l10n, v),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: AppSpacing.x2),
+          Text(
+            l10n.welcomeLongSample,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: cs.onSurfaceVariant,
+                ),
+          ),
+          const SizedBox(height: AppSpacing.x2),
+          Text(
+            '${l10n.emergencyCallZeroZeroZero} — ${l10n.medicalDisclaimerShort}',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: cs.onSurfaceVariant,
+                ),
+          ),
+          const SizedBox(height: AppSpacing.x6),
+
           // ── Theme ──────────────────────────────────────────────────────────
           const _SectionHeader('Theme'),
           const SizedBox(height: AppSpacing.x3),
@@ -157,7 +230,7 @@ class AppearanceScreen extends ConsumerWidget {
                   actions: [
                     TextButton(
                       onPressed: () => Navigator.pop(context, false),
-                      child: const Text('Cancel'),
+                      child: Text(l10n.cancel),
                     ),
                     FilledButton(
                       onPressed: () => Navigator.pop(context, true),
@@ -172,13 +245,28 @@ class AppearanceScreen extends ConsumerWidget {
             label: const Text('Reset to Defaults'),
             style: OutlinedButton.styleFrom(
               foregroundColor: cs.error,
-              side: BorderSide(color: cs.error),
-              minimumSize: const Size(double.infinity, 48),
             ),
           ),
-          const SizedBox(height: AppSpacing.x8),
         ],
       ),
+    );
+  }
+}
+
+Future<void> _onLanguageSelected(
+  BuildContext context,
+  LocaleController localeCtl,
+  AppLocalizations l10n,
+  String? code,
+) async {
+  if (code == null) {
+    await localeCtl.useSystemLocale();
+  } else {
+    await localeCtl.setLocale(Locale(code));
+  }
+  if (context.mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(l10n.settingsSaved)),
     );
   }
 }

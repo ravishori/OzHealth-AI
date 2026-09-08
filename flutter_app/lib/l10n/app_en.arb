@@ -1,0 +1,43 @@
+{
+  "@@locale": "en",
+  "appTitle": "HealthNest",
+  "@appTitle": {
+    "description": "Application brand name — keep as product name"
+  },
+  "appTagline": "Your health companion",
+  "getStarted": "Get Started",
+  "login": "Log in",
+  "language": "Language",
+  "languageSubtitle": "App display language. Clinical and emergency wording stays in English when a safe translation is not available.",
+  "languageSystem": "System default",
+  "languageEnglish": "English",
+  "languageHindi": "Hindi",
+  "languageMarathi": "Marathi",
+  "appearance": "Appearance",
+  "appearanceSubtitle": "Themes, text size & display",
+  "privacy": "Privacy",
+  "privacySubtitle": "Consent, export, notifications & legal",
+  "accountSection": "Account",
+  "myProfile": "My Profile",
+  "signOut": "Sign Out",
+  "homeDashboard": "Home Dashboard",
+  "emergencySos": "Emergency SOS",
+  "emergencySosSubtitle": "Alert emergency contacts",
+  "aiHealthAssistant": "AI Health Assistant",
+  "settingsSaved": "Language updated",
+  "cancel": "Cancel",
+  "save": "Save",
+  "featureMedications": "Manage Medications & Prescriptions",
+  "featureAiAssistant": "AI Health Assistant (24/7)",
+  "featureFamily": "Family Health Management",
+  "featureMonitoring": "Health Monitoring & AI Insights",
+  "welcomeLongSample": "Choose your preferred display language. Longer translated labels should wrap without clipping buttons or navigation items.",
+  "emergencyCallZeroZeroZero": "Call 000",
+  "@emergencyCallZeroZeroZero": {
+    "description": "Australian emergency number — do not localize the digits"
+  },
+  "medicalDisclaimerShort": "This app does not provide medical advice. Always consult a qualified health professional.",
+  "@medicalDisclaimerShort": {
+    "description": "Safety disclaimer retained in English across locales for semantic accuracy"
+  }
+}

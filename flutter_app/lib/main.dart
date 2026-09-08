@@ -2,9 +2,12 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:vitapulse_ai/l10n/app_localizations.dart';
 import 'package:vitapulse_ai/core/error/error_reporter.dart';
+import 'package:vitapulse_ai/core/locale/locale_controller.dart';
 import 'package:vitapulse_ai/core/network/server_discovery.dart';
 import 'package:vitapulse_ai/core/notifications/local_reminder_notifications.dart';
 import 'package:vitapulse_ai/core/providers/app_provider_observer.dart';
@@ -87,14 +90,25 @@ class VitaPulseApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(themeManagerProvider);
+    final locale = ref.watch(localeControllerProvider);
 
     return MaterialApp.router(
-      title:      'HealthNest',
-      theme:      AppThemeBuilder.light(settings),
-      darkTheme:  AppThemeBuilder.dark(settings),
-      themeMode:  settings.themeMode,
+      title: 'HealthNest',
+      onGenerateTitle: (context) => AppLocalizations.of(context).appTitle,
+      theme: AppThemeBuilder.light(settings),
+      darkTheme: AppThemeBuilder.dark(settings),
+      themeMode: settings.themeMode,
       routerConfig: appRouter,
       debugShowCheckedModeBanner: false,
+      locale: locale,
+      supportedLocales: kAppSupportedLocales,
+      localeResolutionCallback: localeResolution,
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
 
       // Apply global UX overrides driven by appearance settings
       builder: (context, child) {

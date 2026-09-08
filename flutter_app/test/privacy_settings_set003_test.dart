@@ -159,7 +159,11 @@ void main() {
     expect(routerSrc.contains('settings/privacy'), isTrue);
     expect(routerSrc.contains('PrivacySettingsScreen'), isTrue);
     expect(drawerSrc.contains('/home/settings/privacy'), isTrue);
-    expect(drawerSrc.contains("label: 'Privacy'"), isTrue);
+    expect(
+      drawerSrc.contains("label: 'Privacy'") ||
+          drawerSrc.contains('label: l10n.privacy'),
+      isTrue,
+    );
   });
 
   testWidgets('SET03 delete account deep-link is present', (tester) async {

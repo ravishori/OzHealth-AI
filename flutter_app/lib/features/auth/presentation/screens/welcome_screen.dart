@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:vitapulse_ai/l10n/app_localizations.dart';
 import 'package:go_router/go_router.dart';
 import 'package:vitapulse_ai/shared/widgets/vitapulse_logo.dart';
 import 'package:vitapulse_ai/theme/design_tokens/app_radius.dart';
@@ -9,6 +10,7 @@ class WelcomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
@@ -33,9 +35,9 @@ class WelcomeScreen extends StatelessWidget {
                 // ── Logo & wordmark ──────────────────────────────────────────
                 const VitaPulseLogo(size: 80),
                 const SizedBox(height: 20),
-                const Text(
-                  'HealthNest',
-                  style: TextStyle(
+                Text(
+                  l10n.appTitle,
+                  style: const TextStyle(
                     color: Color(0xFFEFF6FF),
                     fontSize: 30,
                     fontWeight: FontWeight.w800,
@@ -44,9 +46,9 @@ class WelcomeScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 8),
-                const Text(
-                  'Your health companion',
-                  style: TextStyle(
+                Text(
+                  l10n.appTagline,
+                  style: const TextStyle(
                     color: Color(0x8094A3B8),
                     fontSize: 13,
                     fontStyle: FontStyle.italic,
@@ -59,25 +61,25 @@ class WelcomeScreen extends StatelessWidget {
                 // ── Feature highlights ───────────────────────────────────────
                 _FeatureRow(
                   icon: Icons.medication_outlined,
-                  text: 'Manage Medications & Prescriptions',
+                  text: l10n.featureMedications,
                   accent: cs.secondary,
                 ),
                 const SizedBox(height: 14),
                 _FeatureRow(
                   icon: Icons.psychology_outlined,
-                  text: 'AI Health Assistant (24/7)',
+                  text: l10n.featureAiAssistant,
                   accent: cs.secondary,
                 ),
                 const SizedBox(height: 14),
                 _FeatureRow(
                   icon: Icons.family_restroom_outlined,
-                  text: 'Family Health Management',
+                  text: l10n.featureFamily,
                   accent: cs.secondary,
                 ),
                 const SizedBox(height: 14),
                 _FeatureRow(
                   icon: Icons.monitor_heart_outlined,
-                  text: 'Health Monitoring & AI Insights',
+                  text: l10n.featureMonitoring,
                   accent: cs.secondary,
                 ),
 
@@ -91,13 +93,15 @@ class WelcomeScreen extends StatelessWidget {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.white,
                       foregroundColor: cs.primary,
-                      shape: const RoundedRectangleBorder(borderRadius: AppRadius.brMd),
+                      shape: const RoundedRectangleBorder(
+                          borderRadius: AppRadius.brMd),
                       elevation: 0,
                     ),
                     onPressed: () => context.go('/auth/register'),
-                    child: const Text(
-                      'Get Started',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                    child: Text(
+                      l10n.getStarted,
+                      style: const TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.w700),
                     ),
                   ),
                 ),
@@ -108,21 +112,24 @@ class WelcomeScreen extends StatelessWidget {
                   child: OutlinedButton(
                     style: OutlinedButton.styleFrom(
                       foregroundColor: const Color(0xFFEFF6FF),
-                      side: const BorderSide(color: Color(0x5594A3B8), width: 1.5),
-                      shape: const RoundedRectangleBorder(borderRadius: AppRadius.brMd),
+                      side: const BorderSide(
+                          color: Color(0x5594A3B8), width: 1.5),
+                      shape: const RoundedRectangleBorder(
+                          borderRadius: AppRadius.brMd),
                     ),
                     onPressed: () => context.go('/auth/login'),
-                    child: const Text(
-                      'I already have an account',
-                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+                    child: Text(
+                      l10n.login,
+                      style: const TextStyle(
+                          fontSize: 15, fontWeight: FontWeight.w500),
                     ),
                   ),
                 ),
 
                 const SizedBox(height: 24),
-                const Text(
-                  'Compliant with Australian Privacy Principles',
-                  style: TextStyle(
+                Text(
+                  l10n.medicalDisclaimerShort,
+                  style: const TextStyle(
                     color: Color(0x5594A3B8),
                     fontSize: 11,
                     letterSpacing: 0.2,

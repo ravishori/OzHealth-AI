@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:vitapulse_ai/l10n/app_localizations.dart';
 import 'package:go_router/go_router.dart';
 import 'package:vitapulse_ai/core/utils/auth_storage.dart';
 import 'package:vitapulse_ai/features/auth/data/auth_api.dart';
@@ -73,6 +74,7 @@ class _AppDrawerState extends State<AppDrawer> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final hc = HealthcareColors.of(context);
+    final l10n = AppLocalizations.of(context);
     return Drawer(
       backgroundColor: cs.surface,
       child: SafeArea(
@@ -115,9 +117,9 @@ class _AppDrawerState extends State<AppDrawer> {
                         fontSize: 17,
                         fontWeight: FontWeight.bold),
                   ),
-                  const Text(
-                    'HealthNest',
-                    style: TextStyle(color: Colors.white70, fontSize: 12),
+                  Text(
+                    l10n.appTitle,
+                    style: const TextStyle(color: Colors.white70, fontSize: 12),
                   ),
                 ],
               ),
@@ -132,7 +134,7 @@ class _AppDrawerState extends State<AppDrawer> {
                   // ─── Home ───────────────────────────────────────────────
                   _DrawerItem(
                     icon: Icons.home_outlined,
-                    label: 'Home Dashboard',
+                    label: l10n.homeDashboard,
                     onTap: () => _navReplace('/home'),
                   ),
 
@@ -210,7 +212,7 @@ class _AppDrawerState extends State<AppDrawer> {
                   const _SectionHeader('AI Diagnostic Tools'),
                   _DrawerItem(
                     icon: Icons.psychology_outlined,
-                    label: 'AI Health Assistant',
+                    label: l10n.aiHealthAssistant,
                     subtitle: 'Ask any health question',
                     onTap: () => _nav('/home/ai-chat'),
                     badgeColor: cs.primary,
@@ -248,30 +250,30 @@ class _AppDrawerState extends State<AppDrawer> {
                   ),
                   _DrawerItem(
                     icon: Icons.emergency_outlined,
-                    label: 'Emergency SOS',
-                    subtitle: 'Alert emergency contacts',
+                    label: l10n.emergencySos,
+                    subtitle: l10n.emergencySosSubtitle,
                     onTap: () => _nav('/home/emergency'),
                     badgeColor: hc.emergency,
                     badge: 'SOS',
                   ),
 
-                  const _SectionHeader('Account'),
+                  _SectionHeader(l10n.accountSection),
                   _DrawerItem(
                     icon: Icons.person_outline,
-                    label: 'My Profile',
+                    label: l10n.myProfile,
                     subtitle: 'Health info & preferences',
                     onTap: () => _nav('/home/profile'),
                   ),
                   _DrawerItem(
                     icon: Icons.palette_outlined,
-                    label: 'Appearance',
-                    subtitle: 'Themes, text size & display',
+                    label: l10n.appearance,
+                    subtitle: l10n.appearanceSubtitle,
                     onTap: () => _nav('/home/settings/appearance'),
                   ),
                   _DrawerItem(
                     icon: Icons.privacy_tip_outlined,
-                    label: 'Privacy',
-                    subtitle: 'Consent, export, notifications & legal',
+                    label: l10n.privacy,
+                    subtitle: l10n.privacySubtitle,
                     onTap: () => _nav('/home/settings/privacy'),
                   ),
                   _DrawerItem(
@@ -284,7 +286,7 @@ class _AppDrawerState extends State<AppDrawer> {
                   const Divider(height: 24),
                   _DrawerItem(
                     icon: Icons.logout,
-                    label: 'Sign Out',
+                    label: l10n.signOut,
                     iconColor: cs.error,
                     labelColor: cs.error,
                     onTap: _logout,
