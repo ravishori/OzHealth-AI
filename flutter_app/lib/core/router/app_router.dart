@@ -23,6 +23,7 @@ import 'package:vitapulse_ai/features/medicines/presentation/medicine_detail_scr
 import 'package:vitapulse_ai/features/medicines/presentation/medicine_favourites_screen.dart';
 import 'package:vitapulse_ai/features/reminders/presentation/reminders_screen.dart';
 import 'package:vitapulse_ai/features/reminders/presentation/add_reminder_screen.dart';
+import 'package:vitapulse_ai/features/reminders/presentation/medication_history_screen.dart';
 import 'package:vitapulse_ai/features/health_monitoring/presentation/health_monitoring_screen.dart';
 import 'package:vitapulse_ai/features/health_monitoring/presentation/log_metric_screen.dart';
 import 'package:vitapulse_ai/features/ai_assistant/presentation/ai_chat_screen.dart';
@@ -198,6 +199,22 @@ final appRouter = GoRouter(
         ),
         GoRoute(path: 'reminders', builder: (_, __) => const RemindersScreen()),
         GoRoute(path: 'reminders/add', builder: (_, __) => const AddReminderScreen()),
+        GoRoute(
+          path: 'reminders/history',
+          builder: (_, state) {
+            final extra = state.extra;
+            int? scheduleId;
+            if (extra is Map) {
+              final raw = extra['medication_schedule_id'] ?? extra['id'];
+              if (raw is int) {
+                scheduleId = raw;
+              } else if (raw != null) {
+                scheduleId = int.tryParse('$raw');
+              }
+            }
+            return MedicationHistoryScreen(initialScheduleId: scheduleId);
+          },
+        ),
         GoRoute(
           path: 'reminders/edit',
           builder: (_, state) => AddReminderScreen(

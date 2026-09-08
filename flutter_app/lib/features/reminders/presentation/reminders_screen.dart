@@ -193,6 +193,12 @@ class _RemindersScreenState extends State<RemindersScreen> {
         ),
         actions: [
           IconButton(
+            key: const Key('medication_history_nav'),
+            icon: const Icon(Icons.history_rounded),
+            tooltip: 'Medication history',
+            onPressed: () => context.push('/home/reminders/history'),
+          ),
+          IconButton(
             icon: const Icon(Icons.refresh_rounded),
             tooltip: 'Refresh',
             onPressed: _loadReminders,
