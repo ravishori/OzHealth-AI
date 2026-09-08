@@ -557,52 +557,60 @@ Should this person see a doctor? Return JSON:
 
 
 async def generate_predictive_health_alerts(health_metrics: list[dict], medicines: list[str]) -> dict:
+    """
+    Legacy helper — prefer health_insights_service.build_grounded_insights_payload.
+
+    Returns a grounded, non-diagnostic envelope from deterministic metric facts
+    (no AI-invented alerts).
+    """
+    from app.services.health_insights_service import (
+        INSIGHTS_DISCLAIMER,
+        build_metric_trend_insights,
+    )
+
     if not health_metrics:
-        return {"alerts": [], "trends": [], "overall_status": "insufficient_data"}
-    if not _ai_available():
-        return {"alerts": [], "trends": [], "overall_status": "unknown"}
-    try:
-        client = _new_client()
-        response = await client.messages.create(
-            model=_MODEL_HAIKU,
-            max_tokens=1000,
-            system="You are an Australian preventive health analyst. Identify trends and generate early warnings from health data. Respond with valid JSON.",
-            messages=[{"role": "user", "content": f"""Analyse health metrics and identify concerning trends:
+        return {
+            "alerts": [],
+            "trends": [],
+            "overall_status": "insufficient_data",
+            "summary": "Not enough recent health measurements to identify a trend.",
+            "disclaimer": INSIGHTS_DISCLAIMER,
+            "is_diagnosis": False,
+        }
 
-Recent metrics (last 30 days): {json.dumps(health_metrics[-20:])}
-Current medicines: {', '.join(medicines) if medicines else 'none'}
-
-Return JSON:
-{{
-  "overall_status": "good|monitor|concerning|critical",
-  "alerts": [
-    {{
-      "type": "e.g. blood_pressure_rising",
-      "severity": "info|warning|urgent",
-      "title": "",
-      "description": "",
-      "recommendation": ""
-    }}
-  ],
-  "trends": [
-    {{
-      "metric": "",
-      "direction": "improving|stable|worsening",
-      "note": ""
-    }}
-  ],
-  "positive_highlights": ["good trend 1"],
-  "next_review": "suggested timeframe for next health check"
-}}"""}],
-        )
-        text = response.content[0].text
-        match = re.search(r'\{.*\}', text, re.DOTALL)
-        if match:
-            return json.loads(match.group())
-        return {"alerts": [], "trends": [], "overall_status": "unknown"}
-    except Exception as e:
-        ai_log.error("Predictive health alerts error model=%s: %s: %s", _MODEL_HAIKU, type(e).__name__, e)
-        return {"alerts": [], "trends": [], "overall_status": "unknown"}
+    insights = build_metric_trend_insights(health_metrics, period_days=30)
+    grounded = [i for i in insights if i.get("status") == "grounded"]
+    return {
+        "alerts": [
+            {
+                "type": i.get("category"),
+                "severity": "info",
+                "title": i.get("title"),
+                "description": i.get("summary"),
+                "recommendation": i.get("suggestion"),
+            }
+            for i in grounded
+        ],
+        "trends": [
+            {
+                "metric": (i.get("facts") or {}).get("metric_type"),
+                "direction": (i.get("facts") or {}).get("direction"),
+                "note": i.get("summary"),
+            }
+            for i in grounded
+            if i.get("category") == "trend"
+        ],
+        "overall_status": "grounded" if grounded else "insufficient_data",
+        "summary": (
+            f"{len(grounded)} grounded metric insight(s) from recorded values."
+            if grounded
+            else "Not enough recorded measurements for a personal trend."
+        ),
+        "positive_highlights": [],
+        "disclaimer": INSIGHTS_DISCLAIMER,
+        "is_diagnosis": False,
+        "medicines_count": len(medicines or []),
+    }
 
 
 def _fallback_response(query: str) -> str:

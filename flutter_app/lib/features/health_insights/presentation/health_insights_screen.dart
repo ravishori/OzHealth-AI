@@ -1,16 +1,23 @@
 import 'package:flutter/material.dart';
-import 'package:vitapulse_ai/core/network/api_client.dart';
 import 'package:vitapulse_ai/core/utils/error_handler.dart';
+import 'package:vitapulse_ai/features/health_insights/data/health_insights_api.dart';
+import 'package:vitapulse_ai/features/legal/legal_copy.dart';
+import 'package:vitapulse_ai/shared/widgets/clinical_safety_banner.dart';
 import 'package:vitapulse_ai/theme/design_tokens/app_radius.dart';
 import 'package:vitapulse_ai/theme/theme_extensions.dart';
 
-/// AI-powered health insights & predictive alerts.
-///
-/// Calls:
-///   GET /insights/alerts            — predictive alerts from recent metrics
-///   GET /insights/consultation-advice — when to see a doctor
+typedef InsightsFetchFn = Future<Map<String, dynamic>> Function();
+
+/// HN-FUTURE-003 — Health Insights grounded in recorded HealthNest data.
 class HealthInsightsScreen extends StatefulWidget {
-  const HealthInsightsScreen({super.key});
+  const HealthInsightsScreen({
+    super.key,
+    this.fetchSummary,
+    this.fetchAdvice,
+  });
+
+  final InsightsFetchFn? fetchSummary;
+  final InsightsFetchFn? fetchAdvice;
 
   @override
   State<HealthInsightsScreen> createState() => _HealthInsightsScreenState();
@@ -20,12 +27,10 @@ class _HealthInsightsScreenState extends State<HealthInsightsScreen>
     with SingleTickerProviderStateMixin {
   late final TabController _tabs;
 
-  Map<String, dynamic>? _alerts;
+  Map<String, dynamic>? _summary;
   Map<String, dynamic>? _advice;
-  bool _alertsLoading = true;
-  bool _adviceLoading = true;
-  String? _alertsError;
-  String? _adviceError;
+  bool _loading = false;
+  String? _error;
 
   @override
   void initState() {
@@ -41,90 +46,76 @@ class _HealthInsightsScreenState extends State<HealthInsightsScreen>
   }
 
   Future<void> _loadAll() async {
-    _loadAlerts();
-    _loadAdvice();
-  }
-
-  Future<void> _loadAlerts() async {
+    if (_loading) return;
     setState(() {
-      _alertsLoading = true;
-      _alertsError = null;
+      _loading = true;
+      _error = null;
     });
     try {
-      final resp = await ApiClient.get('/insights/alerts');
-      if (mounted) {
-        setState(() {
-          _alerts = resp.data as Map<String, dynamic>?;
-          _alertsLoading = false;
-        });
-      }
+      final summaryFn =
+          widget.fetchSummary ?? () => HealthInsightsApi.fetchSummary();
+      final adviceFn = widget.fetchAdvice ??
+          () => HealthInsightsApi.fetchConsultationAdvice();
+      final results = await Future.wait([summaryFn(), adviceFn()]);
+      if (!mounted) return;
+      setState(() {
+        _summary = results[0];
+        _advice = results[1];
+        _loading = false;
+      });
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _alertsError = ErrorHandler.getMessage(e);
-          _alertsLoading = false;
-        });
-      }
-    }
-  }
-
-  Future<void> _loadAdvice() async {
-    setState(() {
-      _adviceLoading = true;
-      _adviceError = null;
-    });
-    try {
-      final resp = await ApiClient.get('/insights/consultation-advice');
-      if (mounted) {
-        setState(() {
-          _advice = resp.data as Map<String, dynamic>?;
-          _adviceLoading = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _adviceError = ErrorHandler.getMessage(e);
-          _adviceLoading = false;
-        });
-      }
+      if (!mounted) return;
+      setState(() {
+        _error = ErrorHandler.getMessage(e);
+        _loading = false;
+      });
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      key: const Key('health_insights_screen'),
       appBar: AppBar(
         title: const Text('Health Insights'),
         bottom: TabBar(
           controller: _tabs,
           tabs: const [
-            Tab(icon: Icon(Icons.warning_amber_rounded, size: 20), text: 'Alerts'),
-            Tab(icon: Icon(Icons.local_hospital, size: 20), text: 'Consultation'),
+            Tab(
+              key: Key('insights_tab_overview'),
+              icon: Icon(Icons.insights_outlined, size: 20),
+              text: 'Overview',
+            ),
+            Tab(
+              key: Key('insights_tab_consultation'),
+              icon: Icon(Icons.local_hospital, size: 20),
+              text: 'Consultation',
+            ),
           ],
         ),
         actions: [
           IconButton(
+            key: const Key('insights_refresh_button'),
             icon: const Icon(Icons.refresh),
             tooltip: 'Refresh',
-            onPressed: _loadAll,
+            onPressed: _loading ? null : _loadAll,
           ),
         ],
       ),
       body: TabBarView(
         controller: _tabs,
         children: [
-          _AlertsTab(
-            loading: _alertsLoading,
-            error: _alertsError,
-            data: _alerts,
-            onRetry: _loadAlerts,
+          _OverviewTab(
+            loading: _loading && _summary == null,
+            error: _error,
+            data: _summary,
+            onRetry: _loadAll,
           ),
           _ConsultationTab(
-            loading: _adviceLoading,
-            error: _adviceError,
+            loading: _loading && _advice == null,
+            error: _error,
             data: _advice,
-            onRetry: _loadAdvice,
+            onRetry: _loadAll,
           ),
         ],
       ),
@@ -132,15 +123,13 @@ class _HealthInsightsScreenState extends State<HealthInsightsScreen>
   }
 }
 
-// ─── Alerts Tab ───────────────────────────────────────────────────────────────
-
-class _AlertsTab extends StatelessWidget {
+class _OverviewTab extends StatelessWidget {
   final bool loading;
   final String? error;
   final Map<String, dynamic>? data;
   final VoidCallback onRetry;
 
-  const _AlertsTab({
+  const _OverviewTab({
     required this.loading,
     required this.error,
     required this.data,
@@ -152,55 +141,125 @@ class _AlertsTab extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final hc = HealthcareColors.of(context);
 
-    if (loading) return const Center(child: CircularProgressIndicator());
-    if (error != null) return _ErrorView(message: error!, onRetry: onRetry);
-
-    final raw = data ?? {};
-    final alerts = raw['alerts'] as List<dynamic>? ??
-        raw['predictive_alerts'] as List<dynamic>? ??
-        [];
-    final summary =
-        raw['summary'] as String? ?? raw['analysis'] as String? ?? '';
-
-    if (alerts.isEmpty && summary.isEmpty) {
-      return _EmptyState(
-        icon: Icons.check_circle_outline,
-        title: 'All Clear!',
-        subtitle:
-            'No health alerts detected based on your recent data. Keep tracking your vitals regularly.',
-        color: hc.vitaGood,
+    if (loading) {
+      return const Center(
+        key: Key('insights_loading'),
+        child: CircularProgressIndicator(),
       );
     }
+    if (error != null && data == null) {
+      return _ErrorView(
+        key: const Key('insights_error'),
+        message: error!,
+        onRetry: onRetry,
+      );
+    }
+
+    final raw = data ?? {};
+    final insights = (raw['insights'] as List?)
+            ?.whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList() ??
+        [];
+    final disclaimer =
+        raw['disclaimer']?.toString() ?? LegalCopy.aiBanner;
+    final periodDays = raw['period_days'] ?? 30;
+    final avail = raw['data_availability'] as Map? ?? {};
+
+    final grounded =
+        insights.where((i) => i['status'] == 'grounded').toList();
+    final insufficient =
+        insights.where((i) => i['status'] == 'insufficient_data').toList();
 
     return RefreshIndicator(
       onRefresh: () async => onRetry(),
       child: ListView(
+        key: const Key('insights_overview_list'),
         padding: const EdgeInsets.all(16),
         children: [
-          if (summary.isNotEmpty) ...[
-            _SummaryCard(text: summary),
-            const SizedBox(height: 16),
+          const ClinicalSafetyBanner(
+            key: Key('insights_safety_banner'),
+            kind: ClinicalDisclaimerKind.ai,
+            rounded: true,
+            padding: EdgeInsets.all(12),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            key: const Key('insights_purpose_banner'),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: cs.primary.withValues(alpha: 0.08),
+              borderRadius: AppRadius.brMd,
+              border: Border.all(color: cs.primary.withValues(alpha: 0.2)),
+            ),
+            child: Text(
+              'Insights summarise your recorded HealthNest data for the last '
+              '$periodDays days. They are informational only — not a diagnosis.',
+              style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Data used: ${avail['metrics_count'] ?? 0} metrics · '
+            '${avail['dose_events_count'] ?? 0} dose events · '
+            '${avail['lab_record_count'] ?? 0} lab records',
+            key: const Key('insights_data_availability'),
+            style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+          ),
+          const SizedBox(height: 16),
+
+          if (grounded.isEmpty && insufficient.isNotEmpty) ...[
+            _EmptyState(
+              key: const Key('insights_insufficient_state'),
+              icon: Icons.hourglass_empty,
+              title: 'Not enough data yet',
+              subtitle:
+                  'Record a few more measurements or medication dose outcomes '
+                  'to identify personal trends.',
+              color: hc.vitaWarning,
+            ),
+            const SizedBox(height: 12),
           ],
-          if (alerts.isNotEmpty) ...[
+
+          if (grounded.isNotEmpty) ...[
             Text(
-              '${alerts.length} Alert${alerts.length == 1 ? '' : 's'} Found',
+              'Grounded insights',
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.bold,
                 color: cs.onSurfaceVariant,
               ),
             ),
-            const SizedBox(height: 10),
-            ...alerts.map(
-                (a) => _AlertCard(alert: a as Map<String, dynamic>? ?? {})),
+            const SizedBox(height: 8),
+            ...grounded.map((i) => _InsightCard(insight: i)),
           ],
+
+          if (insufficient.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              'Needs more data',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: cs.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 8),
+            ...insufficient.map((i) => _InsightCard(insight: i)),
+          ],
+
+          const SizedBox(height: 12),
+          Text(
+            disclaimer,
+            key: const Key('insights_disclaimer'),
+            style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
+          ),
+          const SizedBox(height: 24),
         ],
       ),
     );
   }
 }
-
-// ─── Consultation Tab ─────────────────────────────────────────────────────────
 
 class _ConsultationTab extends StatelessWidget {
   final bool loading;
@@ -220,8 +279,12 @@ class _ConsultationTab extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final hc = HealthcareColors.of(context);
 
-    if (loading) return const Center(child: CircularProgressIndicator());
-    if (error != null) return _ErrorView(message: error!, onRetry: onRetry);
+    if (loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (error != null && data == null) {
+      return _ErrorView(message: error!, onRetry: onRetry);
+    }
 
     final raw = data ?? {};
     final advice =
@@ -232,36 +295,27 @@ class _ConsultationTab extends StatelessWidget {
         raw['actions'] as List<dynamic>? ??
         [];
 
-    final urgencyColor = switch (urgency.toLowerCase()) {
-      'urgent' || 'high' => cs.error,
-      'moderate' => hc.vitaWarning,
-      _ => hc.vitaGood,
-    };
-
-    final urgencyIcon = switch (urgency.toLowerCase()) {
-      'urgent' || 'high' => Icons.emergency,
-      'moderate' => Icons.warning_amber_rounded,
-      _ => Icons.check_circle_outline,
-    };
-
     return RefreshIndicator(
       onRefresh: () async => onRetry(),
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // Urgency badge
+          const ClinicalSafetyBanner(
+            kind: ClinicalDisclaimerKind.ai,
+            rounded: true,
+            padding: EdgeInsets.all(12),
+          ),
+          const SizedBox(height: 12),
           Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
-              color: urgencyColor.withValues(alpha: 0.10),
+              color: hc.vitaGood.withValues(alpha: 0.10),
               borderRadius: AppRadius.brMd,
-              border:
-                  Border.all(color: urgencyColor.withValues(alpha: 0.30)),
+              border: Border.all(color: hc.vitaGood.withValues(alpha: 0.30)),
             ),
             child: Row(
               children: [
-                Icon(urgencyIcon, color: urgencyColor, size: 28),
+                Icon(Icons.info_outline, color: cs.primary, size: 28),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -271,13 +325,13 @@ class _ConsultationTab extends StatelessWidget {
                         urgency.toUpperCase(),
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
-                          color: urgencyColor,
+                          color: cs.primary,
                           fontSize: 12,
                           letterSpacing: 1,
                         ),
                       ),
                       Text(
-                        'Consultation Priority',
+                        'Informational consultation context',
                         style: TextStyle(
                           fontSize: 11,
                           color: cs.onSurfaceVariant,
@@ -290,12 +344,10 @@ class _ConsultationTab extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-
           if (advice.isNotEmpty) _SummaryCard(text: advice),
-
           if (reasons.isNotEmpty) ...[
             const SizedBox(height: 16),
-            const Text('Why You Should Consult',
+            const Text('Based on your recorded data',
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
             const SizedBox(height: 8),
             ...reasons.map((r) => _BulletItem(
@@ -304,10 +356,9 @@ class _ConsultationTab extends StatelessWidget {
                   color: cs.secondary,
                 )),
           ],
-
           if (actions.isNotEmpty) ...[
             const SizedBox(height: 16),
-            const Text('Next Steps',
+            const Text('Suggested next steps',
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
             const SizedBox(height: 8),
             ...actions.map((a) => _BulletItem(
@@ -317,37 +368,38 @@ class _ConsultationTab extends StatelessWidget {
                 )),
           ],
           const SizedBox(height: 16),
+          Text(
+            raw['disclaimer']?.toString() ?? LegalCopy.aiBanner,
+            style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
+          ),
         ],
       ),
     );
   }
 }
 
-// ─── Small reusable widgets ───────────────────────────────────────────────────
-
-class _AlertCard extends StatelessWidget {
-  final Map<String, dynamic> alert;
-  const _AlertCard({required this.alert});
+class _InsightCard extends StatelessWidget {
+  final Map<String, dynamic> insight;
+  const _InsightCard({required this.insight});
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final hc = HealthcareColors.of(context);
+    final status = insight['status']?.toString() ?? '';
+    final insufficient = status == 'insufficient_data';
+    final color = insufficient ? hc.vitaWarning : cs.primary;
+    final category = insight['category']?.toString() ?? 'insight';
+    final source = insight['source']?.toString() ?? '';
+    final period = insight['period']?.toString() ?? '';
+    final reviewState = insight['review_state']?.toString();
 
-    final title =
-        alert['title'] as String? ?? alert['type'] as String? ?? 'Alert';
-    final message =
-        alert['message'] as String? ?? alert['details'] as String? ?? '';
-    final severity =
-        alert['severity'] as String? ?? alert['priority'] as String? ?? 'medium';
-
-    final color = switch (severity.toLowerCase()) {
-      'high' || 'critical' => cs.error,
-      'medium' => hc.vitaWarning,
-      _ => cs.secondary,
-    };
+    // Never present unreviewed lab as confirmed.
+    final labUnreviewed = category == 'lab' &&
+        (reviewState == 'unreviewed_excluded' || insufficient);
 
     return Container(
+      key: Key('insight_card_${insight['id'] ?? category}'),
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -361,47 +413,64 @@ class _AlertCard extends StatelessWidget {
           ),
         ],
       ),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.10),
-              borderRadius: AppRadius.brSm,
-            ),
-            child: Icon(Icons.warning_amber_rounded, color: color, size: 20),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  insight['title']?.toString() ?? 'Insight',
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold, fontSize: 14),
+                ),
+              ),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.10),
+                  borderRadius: AppRadius.brSm,
+                ),
+                child: Text(
+                  insufficient ? 'NEEDS DATA' : 'GROUNDED',
+                  style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: color),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold, fontSize: 14)),
-                if (message.isNotEmpty) ...[
-                  const SizedBox(height: 4),
-                  Text(message,
-                      style: TextStyle(
-                          fontSize: 13, color: cs.onSurfaceVariant)),
-                ],
-              ],
-            ),
+          const SizedBox(height: 6),
+          Text(
+            insight['summary']?.toString() ?? '',
+            style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant),
           ),
-          Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.10),
-              borderRadius: AppRadius.brSm,
-            ),
-            child: Text(
-              severity.toUpperCase(),
-              style: TextStyle(
-                  fontSize: 10, fontWeight: FontWeight.bold, color: color),
-            ),
+          const SizedBox(height: 8),
+          Text(
+            [
+              if (category.isNotEmpty) 'Category: $category',
+              if (source.isNotEmpty) 'Source: $source',
+              if (period.isNotEmpty) 'Period: $period',
+            ].join(' · '),
+            key: const Key('insight_source_period'),
+            style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
           ),
+          if (labUnreviewed) ...[
+            const SizedBox(height: 6),
+            Text(
+              'Unreviewed lab extractions are not shown as confirmed results.',
+              style: TextStyle(fontSize: 11, color: hc.vitaWarning),
+            ),
+          ],
+          if (insight['suggestion'] != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              insight['suggestion'].toString(),
+              style: TextStyle(fontSize: 12, color: cs.primary),
+            ),
+          ],
         ],
       ),
     );
@@ -415,7 +484,6 @@ class _SummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -447,7 +515,6 @@ class _BulletItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Row(
@@ -471,6 +538,7 @@ class _EmptyState extends StatelessWidget {
   final String title, subtitle;
   final Color color;
   const _EmptyState({
+    super.key,
     required this.icon,
     required this.title,
     required this.subtitle,
@@ -480,24 +548,20 @@ class _EmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 64, color: color),
-            const SizedBox(height: 16),
-            Text(title,
-                style: const TextStyle(
-                    fontSize: 20, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            Text(subtitle,
-                textAlign: TextAlign.center,
-                style: TextStyle(color: cs.onSurfaceVariant, fontSize: 14)),
-          ],
-        ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Column(
+        children: [
+          Icon(icon, size: 48, color: color),
+          const SizedBox(height: 12),
+          Text(title,
+              style: const TextStyle(
+                  fontSize: 18, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          Text(subtitle,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: cs.onSurfaceVariant, fontSize: 14)),
+        ],
       ),
     );
   }
@@ -506,12 +570,12 @@ class _EmptyState extends StatelessWidget {
 class _ErrorView extends StatelessWidget {
   final String message;
   final VoidCallback onRetry;
-  const _ErrorView({required this.message, required this.onRetry});
+  const _ErrorView(
+      {super.key, required this.message, required this.onRetry});
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -525,6 +589,7 @@ class _ErrorView extends StatelessWidget {
                 style: TextStyle(color: cs.onSurfaceVariant)),
             const SizedBox(height: 16),
             OutlinedButton.icon(
+              key: const Key('insights_retry_button'),
               onPressed: onRetry,
               icon: const Icon(Icons.refresh),
               label: const Text('Retry'),
