@@ -285,6 +285,102 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'This app does not provide medical advice. Always consult a qualified health professional.'**
   String get medicalDisclaimerShort;
+
+  /// No description provided for @security.
+  ///
+  /// In en, this message translates to:
+  /// **'Security'**
+  String get security;
+
+  /// No description provided for @securitySubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Optional device biometrics for this app on this device'**
+  String get securitySubtitle;
+
+  /// No description provided for @securityBiometricLock.
+  ///
+  /// In en, this message translates to:
+  /// **'Biometric app lock'**
+  String get securityBiometricLock;
+
+  /// No description provided for @securityBiometricLockHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Require fingerprint or face unlock before opening your HealthNest home on this device. This does not replace your account sign-in.'**
+  String get securityBiometricLockHelp;
+
+  /// No description provided for @securityBoundaryHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'When enabled, HealthNest asks for device biometrics after you sign in, before showing your home. No fingerprints or face data are stored by HealthNest.'**
+  String get securityBoundaryHelp;
+
+  /// No description provided for @securityBiometricsUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Biometrics are not available or not enrolled on this device.'**
+  String get securityBiometricsUnavailable;
+
+  /// No description provided for @securityEnableReason.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm biometrics to enable app lock'**
+  String get securityEnableReason;
+
+  /// No description provided for @securityDisableReason.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm biometrics to disable app lock'**
+  String get securityDisableReason;
+
+  /// No description provided for @securityUnlockReason.
+  ///
+  /// In en, this message translates to:
+  /// **'Unlock HealthNest'**
+  String get securityUnlockReason;
+
+  /// No description provided for @securityUnlockTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Unlock HealthNest'**
+  String get securityUnlockTitle;
+
+  /// No description provided for @securityUnlockBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Use your device biometrics to continue to your home screen.'**
+  String get securityUnlockBody;
+
+  /// No description provided for @securityUnlockAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Unlock'**
+  String get securityUnlockAction;
+
+  /// No description provided for @securityEnabled.
+  ///
+  /// In en, this message translates to:
+  /// **'Biometric app lock enabled'**
+  String get securityEnabled;
+
+  /// No description provided for @securityDisabled.
+  ///
+  /// In en, this message translates to:
+  /// **'Biometric app lock disabled'**
+  String get securityDisabled;
+
+  /// No description provided for @securityAuthFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Authentication failed. App lock was not changed.'**
+  String get securityAuthFailed;
+
+  /// No description provided for @securityAuthCancelled.
+  ///
+  /// In en, this message translates to:
+  /// **'Authentication cancelled.'**
+  String get securityAuthCancelled;
 }
 
 class _AppLocalizationsDelegate

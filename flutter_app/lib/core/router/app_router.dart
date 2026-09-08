@@ -39,12 +39,27 @@ import 'package:vitapulse_ai/features/eprescriptions/presentation/eprescription_
 import 'package:vitapulse_ai/features/eprescriptions/presentation/eprescription_result_screen.dart';
 import 'package:vitapulse_ai/features/settings/presentation/appearance_screen.dart';
 import 'package:vitapulse_ai/features/settings/presentation/privacy_settings_screen.dart';
+import 'package:vitapulse_ai/features/settings/presentation/security_settings_screen.dart';
+import 'package:vitapulse_ai/features/settings/presentation/app_lock_screen.dart';
+import 'package:vitapulse_ai/features/settings/domain/app_lock_service.dart';
 import 'package:vitapulse_ai/features/legal/legal_screens.dart';
 import 'package:vitapulse_ai/core/config/app_env.dart';
 import 'package:vitapulse_ai/core/router/page_transitions.dart';
 
 final appRouter = GoRouter(
   initialLocation: '/splash',
+
+  // HN-SET-004: gate authenticated shell when biometric lock is enabled.
+  redirect: (context, state) async {
+    final loc = state.matchedLocation;
+    if (loc == '/auth/app-lock') return null;
+    if (loc.startsWith('/home')) {
+      if (await AppLockService.requiresUnlock()) {
+        return '/auth/app-lock';
+      }
+    }
+    return null;
+  },
 
   // Report navigation errors (bad route params, missing routes, etc.)
   errorBuilder: (context, state) {
@@ -95,6 +110,10 @@ final appRouter = GoRouter(
     ),
     GoRoute(path: '/auth/register', builder: (_, __) => const RegisterScreen()),
     GoRoute(path: '/auth/login', builder: (_, __) => const LoginScreen()),
+    GoRoute(
+      path: '/auth/app-lock',
+      builder: (_, __) => const AppLockScreen(),
+    ),
     GoRoute(
       path: '/auth/otp',
       builder: (_, state) {
@@ -281,6 +300,10 @@ final appRouter = GoRouter(
         GoRoute(
           path: 'settings/privacy',
           builder: (_, __) => const PrivacySettingsScreen(),
+        ),
+        GoRoute(
+          path: 'settings/security',
+          builder: (_, __) => const SecuritySettingsScreen(),
         ),
       ],
     ),

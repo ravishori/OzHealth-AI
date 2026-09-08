@@ -103,4 +103,58 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get medicalDisclaimerShort =>
       'This app does not provide medical advice. Always consult a qualified health professional.';
+
+  @override
+  String get security => 'Security';
+
+  @override
+  String get securitySubtitle =>
+      'Optional device biometrics for this app on this device';
+
+  @override
+  String get securityBiometricLock => 'Biometric app lock';
+
+  @override
+  String get securityBiometricLockHelp =>
+      'Require fingerprint or face unlock before opening your HealthNest home on this device. This does not replace your account sign-in.';
+
+  @override
+  String get securityBoundaryHelp =>
+      'When enabled, HealthNest asks for device biometrics after you sign in, before showing your home. No fingerprints or face data are stored by HealthNest.';
+
+  @override
+  String get securityBiometricsUnavailable =>
+      'Biometrics are not available or not enrolled on this device.';
+
+  @override
+  String get securityEnableReason => 'Confirm biometrics to enable app lock';
+
+  @override
+  String get securityDisableReason => 'Confirm biometrics to disable app lock';
+
+  @override
+  String get securityUnlockReason => 'Unlock HealthNest';
+
+  @override
+  String get securityUnlockTitle => 'Unlock HealthNest';
+
+  @override
+  String get securityUnlockBody =>
+      'Use your device biometrics to continue to your home screen.';
+
+  @override
+  String get securityUnlockAction => 'Unlock';
+
+  @override
+  String get securityEnabled => 'Biometric app lock enabled';
+
+  @override
+  String get securityDisabled => 'Biometric app lock disabled';
+
+  @override
+  String get securityAuthFailed =>
+      'Authentication failed. App lock was not changed.';
+
+  @override
+  String get securityAuthCancelled => 'Authentication cancelled.';
 }

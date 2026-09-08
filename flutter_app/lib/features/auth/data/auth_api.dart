@@ -1,5 +1,6 @@
 import 'package:vitapulse_ai/core/network/api_client.dart';
 import 'package:vitapulse_ai/core/utils/auth_storage.dart';
+import 'package:vitapulse_ai/features/settings/domain/app_lock_service.dart';
 
 enum LogoutOutcome {
   /// Server invalidated the session and local state was cleared.
@@ -102,6 +103,9 @@ class AuthApi {
     } catch (_) {
       serverOk = false;
     }
+    // HN-SET-004: clear in-memory biometric session unlock. The enabled flag
+    // lives in Hive and intentionally survives logout (device-local preference).
+    AppLockService.lockSession();
     await AuthStorage.clearAll();
     return serverOk ? LogoutOutcome.serverOk : LogoutOutcome.localOnly;
   }

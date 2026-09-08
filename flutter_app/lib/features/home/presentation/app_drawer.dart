@@ -277,6 +277,12 @@ class _AppDrawerState extends State<AppDrawer> {
                     onTap: () => _nav('/home/settings/privacy'),
                   ),
                   _DrawerItem(
+                    icon: Icons.security_outlined,
+                    label: l10n.security,
+                    subtitle: l10n.securitySubtitle,
+                    onTap: () => _nav('/home/settings/security'),
+                  ),
+                  _DrawerItem(
                     icon: Icons.delete_forever_outlined,
                     label: 'Delete account',
                     subtitle: 'Permanently remove your data',

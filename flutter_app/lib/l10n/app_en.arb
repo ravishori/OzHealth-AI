@@ -39,5 +39,21 @@
   "medicalDisclaimerShort": "This app does not provide medical advice. Always consult a qualified health professional.",
   "@medicalDisclaimerShort": {
     "description": "Safety disclaimer retained in English across locales for semantic accuracy"
-  }
+  },
+  "security": "Security",
+  "securitySubtitle": "Optional device biometrics for this app on this device",
+  "securityBiometricLock": "Biometric app lock",
+  "securityBiometricLockHelp": "Require fingerprint or face unlock before opening your HealthNest home on this device. This does not replace your account sign-in.",
+  "securityBoundaryHelp": "When enabled, HealthNest asks for device biometrics after you sign in, before showing your home. No fingerprints or face data are stored by HealthNest.",
+  "securityBiometricsUnavailable": "Biometrics are not available or not enrolled on this device.",
+  "securityEnableReason": "Confirm biometrics to enable app lock",
+  "securityDisableReason": "Confirm biometrics to disable app lock",
+  "securityUnlockReason": "Unlock HealthNest",
+  "securityUnlockTitle": "Unlock HealthNest",
+  "securityUnlockBody": "Use your device biometrics to continue to your home screen.",
+  "securityUnlockAction": "Unlock",
+  "securityEnabled": "Biometric app lock enabled",
+  "securityDisabled": "Biometric app lock disabled",
+  "securityAuthFailed": "Authentication failed. App lock was not changed.",
+  "securityAuthCancelled": "Authentication cancelled."
 }

@@ -30,5 +30,21 @@
   "featureMonitoring": "स्वास्थ्य निगरानी और एआई अंतर्दृष्टि",
   "welcomeLongSample": "अपनी पसंदीदा प्रदर्शन भाषा चुनें। लंबी अनुवादित पंक्तियाँ बटन या नेविगेशन काटे बिना लपेटनी चाहिए।",
   "emergencyCallZeroZeroZero": "Call 000",
-  "medicalDisclaimerShort": "This app does not provide medical advice. Always consult a qualified health professional."
+  "medicalDisclaimerShort": "This app does not provide medical advice. Always consult a qualified health professional.",
+  "security": "सुरक्षा",
+  "securitySubtitle": "इस डिवाइस पर ऐप के लिए वैकल्पिक बायोमेट्रिक लॉक",
+  "securityBiometricLock": "बायोमेट्रिक ऐप लॉक",
+  "securityBiometricLockHelp": "इस डिवाइस पर होम खोलने से पहले फिंगरप्रिंट या फेस अनलॉक आवश्यक करें। यह आपके खाता साइन-इन की जगह नहीं लेता।",
+  "securityBoundaryHelp": "सक्षम होने पर, साइन-इन के बाद होम दिखाने से पहले HealthNest डिवाइस बायोमेट्रिक्स माँगता है। HealthNest कोई फिंगरप्रिंट या चेहरे का डेटा संग्रहीत नहीं करता।",
+  "securityBiometricsUnavailable": "इस डिवाइस पर बायोमेट्रिक्स उपलब्ध नहीं हैं या नामांकित नहीं हैं।",
+  "securityEnableReason": "ऐप लॉक सक्षम करने के लिए बायोमेट्रिक्स की पुष्टि करें",
+  "securityDisableReason": "ऐप लॉक अक्षम करने के लिए बायोमेट्रिक्स की पुष्टि करें",
+  "securityUnlockReason": "HealthNest अनलॉक करें",
+  "securityUnlockTitle": "HealthNest अनलॉक करें",
+  "securityUnlockBody": "होम स्क्रीन जारी रखने के लिए अपने डिवाइस बायोमेट्रिक्स का उपयोग करें।",
+  "securityUnlockAction": "अनलॉक",
+  "securityEnabled": "बायोमेट्रिक ऐप लॉक सक्षम",
+  "securityDisabled": "बायोमेट्रिक ऐप लॉक अक्षम",
+  "securityAuthFailed": "प्रमाणीकरण विफल। ऐप लॉक नहीं बदला गया।",
+  "securityAuthCancelled": "प्रमाणीकरण रद्द किया गया।"
 }

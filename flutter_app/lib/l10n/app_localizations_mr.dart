@@ -103,4 +103,59 @@ class AppLocalizationsMr extends AppLocalizations {
   @override
   String get medicalDisclaimerShort =>
       'This app does not provide medical advice. Always consult a qualified health professional.';
+
+  @override
+  String get security => 'सुरक्षा';
+
+  @override
+  String get securitySubtitle =>
+      'या डिव्हाइसवर अ‍ॅपसाठी पर्यायी बायोमेट्रिक लॉक';
+
+  @override
+  String get securityBiometricLock => 'बायोमेट्रिक अ‍ॅप लॉक';
+
+  @override
+  String get securityBiometricLockHelp =>
+      'या डिव्हाइसवर होम उघडण्यापूर्वी फिंगरप्रिंट किंवा फेस अनलॉक आवश्यक करा. हे तुमच्या खाते साइन-इनची जागा घेत नाही.';
+
+  @override
+  String get securityBoundaryHelp =>
+      'सक्षम असताना, साइन-इननंतर होम दाखवण्यापूर्वी HealthNest डिव्हाइस बायोमेट्रिक्स मागतो. HealthNest कोणताही फिंगरप्रिंट किंवा चेहऱ्याचा डेटा साठवत नाही.';
+
+  @override
+  String get securityBiometricsUnavailable =>
+      'या डिव्हाइसवर बायोमेट्रिक्स उपलब्ध नाहीत किंवा नोंदणीकृत नाहीत.';
+
+  @override
+  String get securityEnableReason =>
+      'अ‍ॅप लॉक सक्षम करण्यासाठी बायोमेट्रिक्सची पुष्टी करा';
+
+  @override
+  String get securityDisableReason =>
+      'अ‍ॅप लॉक अक्षम करण्यासाठी बायोमेट्रिक्सची पुष्टी करा';
+
+  @override
+  String get securityUnlockReason => 'HealthNest अनलॉक करा';
+
+  @override
+  String get securityUnlockTitle => 'HealthNest अनलॉक करा';
+
+  @override
+  String get securityUnlockBody =>
+      'होम स्क्रीन सुरू ठेवण्यासाठी तुमचे डिव्हाइस बायोमेट्रिक्स वापरा.';
+
+  @override
+  String get securityUnlockAction => 'अनलॉक';
+
+  @override
+  String get securityEnabled => 'बायोमेट्रिक अ‍ॅप लॉक सक्षम';
+
+  @override
+  String get securityDisabled => 'बायोमेट्रिक अ‍ॅप लॉक अक्षम';
+
+  @override
+  String get securityAuthFailed => 'प्रमाणीकरण अयशस्वी. अ‍ॅप लॉक बदलले नाही.';
+
+  @override
+  String get securityAuthCancelled => 'प्रमाणीकरण रद्द केले.';
 }
