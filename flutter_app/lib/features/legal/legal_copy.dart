@@ -58,10 +58,12 @@ class LegalCopy {
       'Discuss results with your GP. HealthNest does not diagnose. '
       'In an emergency call 000.';
 
-  /// Drug-interaction checker.
+  /// Drug-interaction checker — source-backed / unavailable honesty.
   static const interactionBanner =
-      'This analysis is AI-generated. Always consult your pharmacist or doctor '
-      'before making any medication changes. In an emergency call 000.';
+      'Interaction checks use HealthNest catalogue records when available. '
+      'Unavailable information does not mean medicines are safe together. '
+      'Always consult your pharmacist or doctor before changing medicines. '
+      'In an emergency call 000.';
 
   /// Emergency / SOS — keep dial-first honesty (Sprint 2/3 wording).
   static const emergencyBanner =
