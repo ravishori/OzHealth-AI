@@ -496,9 +496,10 @@ class _AppBarBackground extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 10),
-              // [D2] quick-action chips row
+              // [D2] quick-action chips row — min 40dp for touch + large text
               SizedBox(
-                height: 26,
+                height: (40 * MediaQuery.textScalerOf(context).scale(1.0))
+                    .clamp(40.0, 56.0),
                 child: ListView.separated(
                   scrollDirection:   Axis.horizontal,
                   physics:           const BouncingScrollPhysics(),
@@ -1163,14 +1164,21 @@ class _DashboardSummaryRowState extends State<_DashboardSummaryRow> {
               ),
             ),
             const SizedBox(width: 6),
-            Container(
-              width: 6, height: 6,
-              decoration: BoxDecoration(
-                color:  hc.vitaGood,
-                shape:  BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(color: hc.vitaGood.withValues(alpha: 0.4),
-                      blurRadius: 4),
+            // Status is not color-only: text + icon convey "up to date".
+            Semantics(
+              label: 'Health summary up to date',
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.check_circle, size: 14, color: hc.vitaGood),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Up to date',
+                    style: tt.labelSmall!.copyWith(
+                      color: hc.vitaGood,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -1178,7 +1186,8 @@ class _DashboardSummaryRowState extends State<_DashboardSummaryRow> {
         ),
         const SizedBox(height: 10),
         SizedBox(
-          height: 96,
+          height: (96 * MediaQuery.textScalerOf(context).scale(1.0))
+              .clamp(96.0, 160.0),
           child: ListView(
             scrollDirection: Axis.horizontal,
             physics: const BouncingScrollPhysics(),
@@ -1252,8 +1261,8 @@ class _HeaderChip extends StatelessWidget {
         onTap:        onTap,
         borderRadius: AppRadius.brFull,
         child: Container(
-          height:  26,
-          padding: const EdgeInsets.symmetric(horizontal: 10),
+          constraints: const BoxConstraints(minHeight: 40),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: const BoxDecoration(
             borderRadius: AppRadius.brFull,
             border: Border.fromBorderSide(
@@ -1291,7 +1300,8 @@ class _FeatureChipBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return SizedBox(
-      height: 38,
+      height: (44 * MediaQuery.textScalerOf(context).scale(1.0))
+          .clamp(44.0, 64.0),
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         physics: const BouncingScrollPhysics(),
@@ -1303,7 +1313,7 @@ class _FeatureChipBar extends StatelessWidget {
           child: TapScale(
             onTap: onTaps[i],
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
                 color:        cs.surface,
                 borderRadius: AppRadius.brFull,

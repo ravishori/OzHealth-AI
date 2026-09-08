@@ -118,6 +118,8 @@ class _MedicineSearchScreenState extends State<MedicineSearchScreen> {
           prefixIcon: Icon(Icons.search, color: cs.primary),
           suffixIcon: _searchController.text.isNotEmpty
               ? IconButton(
+                  key: const Key('medicine_search_clear'),
+                  tooltip: 'Clear search',
                   icon: Icon(Icons.clear, color: cs.onSurfaceVariant),
                   onPressed: () {
                     _searchController.clear();

@@ -45,10 +45,11 @@ class HealthMetricCard extends StatelessWidget {
             ),
             borderRadius: AppRadius.brLg,
             elevation: SoftSurfaceElevation.level1,
-            child: SizedBox(
-              height: 70,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 70),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Container(

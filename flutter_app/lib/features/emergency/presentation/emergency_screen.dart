@@ -780,17 +780,22 @@ class _AuNumberCard extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
-            FilledButton.icon(
-              onPressed: onCall,
-              icon: const Icon(Icons.phone_rounded, size: 16),
-              label: const Text('Call'),
-              style: FilledButton.styleFrom(
-                backgroundColor: hc.emergency,
-                foregroundColor: Colors.white,
-                minimumSize: const Size(76, 38),
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
+            Semantics(
+              button: true,
+              label: 'Call ${number.label}',
+              child: FilledButton.icon(
+                key: Key('au_call_${number.label}'),
+                onPressed: onCall,
+                icon: const Icon(Icons.phone_rounded, size: 16),
+                label: const Text('Call'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: hc.emergency,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size(88, 48),
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
               ),
             ),
           ],
@@ -906,12 +911,14 @@ class _ContactCard extends StatelessWidget {
             ],
             const SizedBox(width: 4),
             IconButton.filled(
+              key: const Key('emergency_contact_call'),
               onPressed: onCall,
+              tooltip: 'Call ${contact.name}',
               icon: const Icon(Icons.phone_rounded, size: 20),
               style: IconButton.styleFrom(
                 backgroundColor: cs.primary,
                 foregroundColor: cs.onPrimary,
-                minimumSize: const Size(42, 42),
+                minimumSize: const Size(48, 48),
               ),
             ),
           ],

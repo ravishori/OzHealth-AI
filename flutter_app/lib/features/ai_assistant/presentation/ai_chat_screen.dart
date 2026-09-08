@@ -621,32 +621,38 @@ class _AiChatScreenState extends State<AiChatScreen>
               ),
             ),
             const SizedBox(width: 8),
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              width: 44,
-              height: 44,
-              child: Material(
-                color: _isLoading
-                    ? cs.primary.withValues(alpha: 0.4)
-                    : cs.primary,
-                shape: const CircleBorder(),
-                child: InkWell(
-                  customBorder: const CircleBorder(),
-                  onTap: _isLoading
-                      ? null
-                      : () => _sendMessage(_inputController.text),
-                  child: Center(
-                    child: _isLoading
-                        ? SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: cs.onPrimary,
-                            ),
-                          )
-                        : Icon(Icons.send_rounded,
-                            color: cs.onPrimary, size: 20),
+            Semantics(
+              button: true,
+              enabled: !_isLoading,
+              label: _isLoading ? 'Sending message' : 'Send message',
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                width: 44,
+                height: 44,
+                child: Material(
+                  color: _isLoading
+                      ? cs.primary.withValues(alpha: 0.4)
+                      : cs.primary,
+                  shape: const CircleBorder(),
+                  child: InkWell(
+                    key: const Key('ai_send_button'),
+                    customBorder: const CircleBorder(),
+                    onTap: _isLoading
+                        ? null
+                        : () => _sendMessage(_inputController.text),
+                    child: Center(
+                      child: _isLoading
+                          ? SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: cs.onPrimary,
+                              ),
+                            )
+                          : Icon(Icons.send_rounded,
+                              color: cs.onPrimary, size: 20),
+                    ),
                   ),
                 ),
               ),

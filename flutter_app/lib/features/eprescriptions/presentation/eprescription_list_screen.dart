@@ -284,10 +284,12 @@ class _EPrescriptionCard extends StatelessWidget {
                 const Spacer(),
                 _StatusBadge(status: status, hc: hc, cs: cs),
                 const SizedBox(width: 8),
-                GestureDetector(
-                  onTap: onDelete,
-                  child: Icon(Icons.delete_outline,
-                      size: 20, color: cs.onSurfaceVariant),
+                IconButton(
+                  key: const Key('eprescription_delete'),
+                  tooltip: 'Delete ePrescription',
+                  onPressed: onDelete,
+                  icon: Icon(Icons.delete_outline,
+                      size: 22, color: cs.onSurfaceVariant),
                 ),
               ],
             ),

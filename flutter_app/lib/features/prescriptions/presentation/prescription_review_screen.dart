@@ -289,6 +289,8 @@ class _PrescriptionReviewScreenState extends State<PrescriptionReviewScreen> {
       appBar: AppBar(
         title: const Text('Review prescription'),
         leading: IconButton(
+          key: const Key('prescription_review_close'),
+          tooltip: 'Close review',
           icon: const Icon(Icons.close),
           onPressed: _saving ? null : () => context.pop(),
         ),

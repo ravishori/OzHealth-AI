@@ -230,6 +230,8 @@ class _RecordsScreenState extends State<RecordsScreen>
         ),
       ),
       floatingActionButton: FloatingActionButton(
+        key: const Key('records_upload_fab'),
+        tooltip: 'Upload medical record',
         onPressed: () async {
           final uploaded = await context.push('/home/records/upload');
           if (uploaded == true) _loadRecords(_tabController.index);

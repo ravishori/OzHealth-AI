@@ -99,9 +99,11 @@ class _AppDrawerState extends State<AppDrawer> {
                     children: [
                       _DrawerAvatar(imageUrl: _imageUrl, name: _name),
                       const Spacer(),
-                      InkWell(
-                        onTap: () => _nav('/home/profile'),
-                        child: const Icon(Icons.edit, color: Colors.white60, size: 18),
+                      IconButton(
+                        key: const Key('drawer_edit_profile'),
+                        tooltip: 'Edit profile',
+                        onPressed: () => _nav('/home/profile'),
+                        icon: const Icon(Icons.edit, color: Colors.white60, size: 20),
                       ),
                     ],
                   ),
