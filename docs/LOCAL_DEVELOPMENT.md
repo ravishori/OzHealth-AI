@@ -80,3 +80,40 @@ Compose file statically and reports runtime checks as skipped.
 - Connecting Compose to managed cloud databases
 - Importing PHI / production dumps
 - Marking feature Android E2E verified solely because Compose works
+
+## Continuous integration (HN-INFRA-009)
+
+GitHub Actions workflow: `.github/workflows/ci.yml`.
+
+**When it runs:** every `push` and `pull_request`.
+
+**What it runs (fail closed — no deploy):**
+
+| Job | Commands |
+|-----|----------|
+| Backend | `pip install -r requirements-dev.txt` then `pytest -q` (Python 3.12) |
+| Flutter | `flutter pub get`, `flutter test`, `flutter analyze` (stable channel) |
+
+CI uses **placeholder** `DATABASE_URL` / `SECRET_KEY` env vars required by settings import. It does **not** use production DB credentials, Azure secrets, Anthropic keys, or Firebase credentials, and it does **not** deploy.
+
+### Reproduce the same checks locally
+
+```bash
+# Backend (from repository root) — placeholders only, never production secrets
+cd backend
+python -m venv .venv && source .venv/bin/activate   # or use an existing venv
+pip install -r requirements-dev.txt
+export DATABASE_URL='postgresql+asyncpg://ci:ci@127.0.0.1:5432/ci'
+export SYNC_DATABASE_URL='postgresql+psycopg2://ci:ci@127.0.0.1:5432/ci'
+export SECRET_KEY='ci-only-secret-key-not-for-production'
+export EPRESCRIPTION_MOCK_MODE=true
+pytest -q
+
+# Flutter
+cd flutter_app
+flutter pub get
+flutter test
+flutter analyze
+```
+
+Most backend tests mock DB/IO and do not need a live Postgres instance when those env vars are set.
