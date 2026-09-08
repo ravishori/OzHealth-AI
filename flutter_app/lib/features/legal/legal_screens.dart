@@ -7,6 +7,7 @@ import 'package:vitapulse_ai/core/network/api_client.dart';
 import 'package:vitapulse_ai/core/utils/auth_storage.dart';
 import 'package:vitapulse_ai/core/utils/error_handler.dart';
 import 'package:vitapulse_ai/features/legal/legal_copy.dart';
+import 'package:vitapulse_ai/features/onboarding/onboarding_prefs.dart';
 import 'package:vitapulse_ai/shared/widgets/loading_button.dart';
 
 const kLegalConsentKey = 'legal_consent_v1';
@@ -24,6 +25,11 @@ class _ConsentScreenState extends State<ConsentScreen> {
   Future<void> _continue() async {
     await Hive.box('app_preferences').put(kLegalConsentKey, true);
     if (!mounted) return;
+    // Consent first; guided onboarding is optional and never replaces consent.
+    if (!isOnboardingCompleted()) {
+      context.go('/auth/onboarding');
+      return;
+    }
     final loggedIn = await AuthStorage.isLoggedIn();
     if (!mounted) return;
     context.go(loggedIn ? '/home' : '/auth/welcome');

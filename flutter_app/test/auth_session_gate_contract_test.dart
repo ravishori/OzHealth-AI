@@ -10,6 +10,11 @@ void main() {
     expect(splash.contains('AuthStorage.isLoggedIn()'), isTrue);
     expect(splash.contains("context.go(loggedIn ? '/home' : '/auth/welcome')"),
         isTrue);
+    // Consent remains authoritative before onboarding / auth routing.
+    expect(splash.contains('kLegalConsentKey'), isTrue);
+    expect(splash.contains('/legal/consent'), isTrue);
+    expect(splash.contains('isOnboardingCompleted'), isTrue);
+    expect(splash.contains('/auth/onboarding'), isTrue);
     // Unused import that previously warned must stay gone when splash is touched.
     expect(
       splash.contains("theme/design_tokens/app_radius.dart"),
@@ -38,6 +43,10 @@ void main() {
     final src =
         File('lib/features/legal/legal_screens.dart').readAsStringSync();
     expect(src.contains('AuthStorage.isLoggedIn()'), isTrue);
+    // Consent writes legal flag before any onboarding redirect.
+    expect(src.contains('kLegalConsentKey'), isTrue);
+    expect(src.indexOf("put(kLegalConsentKey, true)"),
+        lessThan(src.indexOf('isOnboardingCompleted')));
   });
 
   test('AUTH8-11 splash and jwt helper do not log token/JWT payloads', () {

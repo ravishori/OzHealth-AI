@@ -4,6 +4,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:vitapulse_ai/core/utils/app_initializer.dart';
 import 'package:vitapulse_ai/core/utils/auth_storage.dart';
 import 'package:vitapulse_ai/features/legal/legal_screens.dart';
+import 'package:vitapulse_ai/features/onboarding/onboarding_prefs.dart';
 import 'package:vitapulse_ai/shared/widgets/vitapulse_logo.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -66,11 +67,17 @@ class _SplashScreenState extends State<SplashScreen>
       Future.delayed(const Duration(milliseconds: 1500)),
     ]);
     if (!mounted) return;
+    // Legal consent remains authoritative (HN-UX-003 / HN-LEGAL-005).
     final consented =
         Hive.box('app_preferences').get(kLegalConsentKey, defaultValue: false) ==
             true;
     if (!consented) {
       context.go('/legal/consent');
+      return;
+    }
+    // Optional guided tour (HN-UX-002) after consent, before welcome/home.
+    if (!isOnboardingCompleted()) {
+      context.go('/auth/onboarding');
       return;
     }
     final loggedIn = await AuthStorage.isLoggedIn();

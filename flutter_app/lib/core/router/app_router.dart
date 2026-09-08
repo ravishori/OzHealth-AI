@@ -6,6 +6,7 @@ import 'package:vitapulse_ai/features/auth/presentation/screens/welcome_screen.d
 import 'package:vitapulse_ai/features/auth/presentation/screens/register_screen.dart';
 import 'package:vitapulse_ai/features/auth/presentation/screens/login_screen.dart';
 import 'package:vitapulse_ai/features/auth/presentation/screens/otp_screen.dart';
+import 'package:vitapulse_ai/features/onboarding/presentation/onboarding_screen.dart';
 import 'package:vitapulse_ai/features/home/presentation/home_screen.dart';
 import 'package:vitapulse_ai/features/profile/presentation/profile_screen.dart';
 import 'package:vitapulse_ai/features/family/presentation/family_screen.dart';
@@ -87,6 +88,10 @@ final appRouter = GoRouter(
       builder: (_, __) => const DeleteAccountScreen(),
     ),
     GoRoute(path: '/auth/welcome', builder: (_, __) => const WelcomeScreen()),
+    GoRoute(
+      path: '/auth/onboarding',
+      builder: (_, __) => const OnboardingScreen(),
+    ),
     GoRoute(path: '/auth/register', builder: (_, __) => const RegisterScreen()),
     GoRoute(path: '/auth/login', builder: (_, __) => const LoginScreen()),
     GoRoute(
