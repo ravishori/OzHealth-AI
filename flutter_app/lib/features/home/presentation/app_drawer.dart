@@ -270,9 +270,9 @@ class _AppDrawerState extends State<AppDrawer> {
                   ),
                   _DrawerItem(
                     icon: Icons.privacy_tip_outlined,
-                    label: 'Privacy policy',
-                    subtitle: 'How we handle health information',
-                    onTap: () => _nav('/legal/privacy'),
+                    label: 'Privacy',
+                    subtitle: 'Consent, export, notifications & legal',
+                    onTap: () => _nav('/home/settings/privacy'),
                   ),
                   _DrawerItem(
                     icon: Icons.delete_forever_outlined,

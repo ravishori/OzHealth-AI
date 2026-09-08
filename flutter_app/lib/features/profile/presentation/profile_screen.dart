@@ -622,6 +622,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           const SizedBox(height: 16),
           ListTile(
+            leading: const Icon(Icons.shield_outlined),
+            title: const Text('Privacy settings'),
+            subtitle: const Text('Consent, export, notifications & legal'),
+            onTap: () => context.push('/home/settings/privacy'),
+          ),
+          ListTile(
             leading: _exportingData
                 ? const SizedBox(
                     width: 24,

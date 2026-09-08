@@ -38,6 +38,7 @@ import 'package:vitapulse_ai/features/eprescriptions/presentation/eprescription_
 import 'package:vitapulse_ai/features/eprescriptions/presentation/eprescription_scan_screen.dart';
 import 'package:vitapulse_ai/features/eprescriptions/presentation/eprescription_result_screen.dart';
 import 'package:vitapulse_ai/features/settings/presentation/appearance_screen.dart';
+import 'package:vitapulse_ai/features/settings/presentation/privacy_settings_screen.dart';
 import 'package:vitapulse_ai/features/legal/legal_screens.dart';
 import 'package:vitapulse_ai/core/config/app_env.dart';
 import 'package:vitapulse_ai/core/router/page_transitions.dart';
@@ -277,6 +278,10 @@ final appRouter = GoRouter(
           ),
         ),
         GoRoute(path: 'settings/appearance', builder: (_, __) => const AppearanceScreen()),
+        GoRoute(
+          path: 'settings/privacy',
+          builder: (_, __) => const PrivacySettingsScreen(),
+        ),
       ],
     ),
   ],
