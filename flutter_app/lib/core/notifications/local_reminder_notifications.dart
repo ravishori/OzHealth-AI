@@ -73,6 +73,14 @@ class LocalReminderNotifications {
   /// before the next schedule's decade block (`(scheduleId+1)*10`).
   static int refillNotificationId(int scheduleId) => scheduleId * 10 + 9;
 
+  /// Appointment one-shot IDs live in a separate namespace so they never collide
+  /// with medication dose/refill IDs (`scheduleId * 10 + …`).
+  /// Formula: `2_000_000 + appointmentId`.
+  static const int appointmentNotificationBase = 2000000;
+
+  static int appointmentNotificationId(int appointmentId) =>
+      appointmentNotificationBase + appointmentId;
+
   /// Cancel dose slots (0..3) and the refill one-shot (+9) for [scheduleId].
   static Future<void> cancelForSchedule(int scheduleId) async {
     await init();
@@ -87,6 +95,90 @@ class LocalReminderNotifications {
   static Future<void> cancelRefillNotification(int scheduleId) async {
     await init();
     await _plugin.cancel(refillNotificationId(scheduleId));
+  }
+
+  /// Cancel the local appointment reminder for [appointmentId] (HN-REM-010).
+  static Future<void> cancelAppointmentNotification(int appointmentId) async {
+    await init();
+    await _plugin.cancel(appointmentNotificationId(appointmentId));
+  }
+
+  /// Schedule (or replace) a one-shot appointment reminder.
+  ///
+  /// Cancels any prior notification for this appointment first (idempotent /
+  /// update-safe). Past reminder times are skipped (not moved), matching refill
+  /// safety. Uses the existing `_channelId` — no FCM / second engine.
+  ///
+  /// Returns false only when permission/channel blocks a future reminder;
+  /// returns true when intentionally skipped (past) or successfully queued.
+  static Future<bool> scheduleAppointmentReminder({
+    required int appointmentId,
+    required String title,
+    required DateTime scheduledAt,
+    int remindBeforeMinutes = 60,
+    String? notes,
+  }) async {
+    await init();
+    // Always clear prior slot for this appointment to avoid duplicates.
+    await cancelAppointmentNotification(appointmentId);
+
+    final allowed = await ensurePermission();
+    if (!allowed) return false;
+
+    if (Platform.isAndroid) {
+      final androidPlugin = _plugin.resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>();
+      final enabled = await androidPlugin?.areNotificationsEnabled();
+      if (enabled == false) return false;
+    }
+
+    final now = tz.TZDateTime.now(tz.local);
+    // Interpret wall-clock components in the device local timezone.
+    final wall = scheduledAt.isUtc ? scheduledAt.toLocal() : scheduledAt;
+    final localScheduled = tz.TZDateTime(
+      tz.local,
+      wall.year,
+      wall.month,
+      wall.day,
+      wall.hour,
+      wall.minute,
+    );
+    final when = localScheduled.subtract(
+      Duration(minutes: remindBeforeMinutes < 0 ? 0 : remindBeforeMinutes),
+    );
+    // Past-time safety: never silently move the user's selected reminder.
+    if (!when.isAfter(now)) {
+      return true;
+    }
+
+    const androidDetails = AndroidNotificationDetails(
+      _channelId,
+      _channelName,
+      channelDescription: 'Medication reminder alerts',
+      importance: Importance.high,
+      priority: Priority.high,
+    );
+    const details = NotificationDetails(
+      android: androidDetails,
+      iOS: DarwinNotificationDetails(),
+    );
+
+    final body = (notes == null || notes.isEmpty)
+        ? 'Upcoming: $title'
+        : 'Upcoming: $title — $notes';
+
+    await _plugin.zonedSchedule(
+      appointmentNotificationId(appointmentId),
+      'Appointment reminder',
+      body,
+      when,
+      details,
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      uiLocalNotificationDateInterpretation:
+          UILocalNotificationDateInterpretation.absoluteTime,
+      // One-shot — no DateTimeComponents match.
+    );
+    return true;
   }
 
   /// Schedule reminders. Returns false if notification permission denied

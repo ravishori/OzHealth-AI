@@ -23,6 +23,8 @@ import 'package:vitapulse_ai/features/medicines/presentation/medicine_detail_scr
 import 'package:vitapulse_ai/features/medicines/presentation/medicine_favourites_screen.dart';
 import 'package:vitapulse_ai/features/reminders/presentation/reminders_screen.dart';
 import 'package:vitapulse_ai/features/reminders/presentation/add_reminder_screen.dart';
+import 'package:vitapulse_ai/features/appointments/presentation/appointments_screen.dart';
+import 'package:vitapulse_ai/features/appointments/presentation/add_appointment_screen.dart';
 import 'package:vitapulse_ai/features/health_monitoring/presentation/health_monitoring_screen.dart';
 import 'package:vitapulse_ai/features/health_monitoring/presentation/log_metric_screen.dart';
 import 'package:vitapulse_ai/features/ai_assistant/presentation/ai_chat_screen.dart';
@@ -202,6 +204,20 @@ final appRouter = GoRouter(
           path: 'reminders/edit',
           builder: (_, state) => AddReminderScreen(
             initialReminder: state.extra as Map<String, dynamic>?,
+          ),
+        ),
+        GoRoute(
+          path: 'appointments',
+          builder: (_, __) => const AppointmentsScreen(),
+        ),
+        GoRoute(
+          path: 'appointments/add',
+          builder: (_, __) => const AddAppointmentScreen(),
+        ),
+        GoRoute(
+          path: 'appointments/edit',
+          builder: (_, state) => AddAppointmentScreen(
+            initialAppointment: state.extra as Map<String, dynamic>?,
           ),
         ),
         GoRoute(path: 'health', builder: (_, __) => const HealthMonitoringScreen()),

@@ -6,12 +6,13 @@ from app.models.prescription import Prescription
 from app.models.medicine import Medicine
 from app.models.medicine_favourite import MedicineFavourite
 from app.models.medication_schedule import MedicationSchedule
+from app.models.appointment import Appointment
 from app.models.health_metric import HealthMetric
 from app.models.emergency_contact import EmergencyContact
 from app.models.ai_conversation import AIConversation
 
 __all__ = [
     "User", "OTP", "FamilyMember", "MedicalRecord", "Prescription",
-    "Medicine", "MedicineFavourite", "MedicationSchedule", "HealthMetric",
-    "EmergencyContact", "AIConversation",
+    "Medicine", "MedicineFavourite", "MedicationSchedule", "Appointment",
+    "HealthMetric", "EmergencyContact", "AIConversation",
 ]

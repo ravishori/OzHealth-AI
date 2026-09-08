@@ -181,6 +181,12 @@ class _AppDrawerState extends State<AppDrawer> {
                     onTap: () => _nav('/home/reminders'),
                   ),
                   _DrawerItem(
+                    icon: Icons.event_available_outlined,
+                    label: 'Appointments',
+                    subtitle: 'GP and clinic appointment reminders',
+                    onTap: () => _nav('/home/appointments'),
+                  ),
+                  _DrawerItem(
                     icon: Icons.biotech_outlined,
                     label: 'Drug Interactions',
                     subtitle: 'AI safety analysis',

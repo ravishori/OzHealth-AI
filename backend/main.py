@@ -26,8 +26,9 @@ from app.middleware.correlation_middleware import CorrelationIdMiddleware
 from app.services.alert_service import send_alert_email, log_error_to_db
 from app.api.routes import (
     auth, users, family, records, prescriptions,
-    medicines, reminders, health_metrics, ai_assistant, emergency, nearby,
-    interactions, symptoms, lab_analysis, insights, eprescriptions,
+    medicines, reminders, appointments, health_metrics, ai_assistant,
+    emergency, nearby, interactions, symptoms, lab_analysis, insights,
+    eprescriptions,
 )
 from app.api.routes import errors as errors_route
 from app.api.routes import medicine_cache as medicine_cache_route
@@ -38,6 +39,7 @@ from app.models import medicine_search_cache    as _medicine_cache_model     # n
 from app.models import medicine_enrichment_log  as _medicine_enrichment_log  # noqa: F401
 from app.models.error_log import ErrorLog as _error_log_model                # noqa: F401
 from app.models.medicine_favourite import MedicineFavourite as _medicine_favourite_model  # noqa: F401
+from app.models.appointment import Appointment as _appointment_model  # noqa: F401
 
 # Backward-compatible aliases (used by auth.py inline import — kept for safety)
 _send_alert_email = send_alert_email
@@ -233,6 +235,7 @@ app.include_router(records.router,        prefix=f"{PREFIX}/records",         ta
 app.include_router(prescriptions.router,  prefix=f"{PREFIX}/prescriptions",   tags=["Prescriptions"])
 app.include_router(medicines.router,      prefix=f"{PREFIX}/medicines",       tags=["Medicines"])
 app.include_router(reminders.router,      prefix=f"{PREFIX}/reminders",       tags=["Reminders"])
+app.include_router(appointments.router,   prefix=f"{PREFIX}/appointments",    tags=["Appointments"])
 app.include_router(health_metrics.router, prefix=f"{PREFIX}/health-metrics",  tags=["Health Metrics"])
 app.include_router(ai_assistant.router,   prefix=f"{PREFIX}/ai",              tags=["AI Assistant"])
 app.include_router(emergency.router,      prefix=f"{PREFIX}/emergency",       tags=["Emergency"])
