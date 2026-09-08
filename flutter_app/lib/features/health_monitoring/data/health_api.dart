@@ -24,7 +24,7 @@ class HealthApi {
   }
 
   /// HN-HEALTH-005 — update an existing owned health metric.
-  /// Does not send user_id or other server-owned fields.
+  /// Does not send user_id, family_member_id, or other server-owned fields.
   static Future<Map<String, dynamic>> updateMetric({
     required int metricId,
     double? value,
@@ -34,8 +34,6 @@ class HealthApi {
     String? notes,
     bool clearNotes = false,
     String? recordedAt,
-    int? familyMemberId,
-    bool clearFamilyMember = false,
   }) async {
     final data = <String, dynamic>{};
     if (value != null) data['value'] = value;
@@ -51,11 +49,6 @@ class HealthApi {
       data['notes'] = notes;
     }
     if (recordedAt != null) data['recorded_at'] = recordedAt;
-    if (clearFamilyMember) {
-      data['family_member_id'] = null;
-    } else if (familyMemberId != null) {
-      data['family_member_id'] = familyMemberId;
-    }
 
     final resp = await ApiClient.put('/health-metrics/$metricId', data: data);
     return resp.data as Map<String, dynamic>;

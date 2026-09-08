@@ -111,7 +111,6 @@ class HealthNotifier extends StateNotifier<HealthState> {
     bool clearNotes = false,
     String? recordedAt,
     int? familyMemberId,
-    bool clearFamilyMember = false,
   }) async {
     state = state.copyWith(isLogging: true, error: null);
     try {
@@ -124,8 +123,6 @@ class HealthNotifier extends StateNotifier<HealthState> {
         notes: notes,
         clearNotes: clearNotes,
         recordedAt: recordedAt,
-        familyMemberId: familyMemberId,
-        clearFamilyMember: clearFamilyMember,
       );
       await loadSummary(familyMemberId: familyMemberId);
       await loadHistory(metricType, familyMemberId: familyMemberId);

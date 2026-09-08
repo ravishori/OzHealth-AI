@@ -15,15 +15,18 @@ class HealthMetricCreate(BaseModel):
 
 
 class HealthMetricUpdate(BaseModel):
-    """HN-HEALTH-005 — editable fields only. Server-owned fields are rejected/ignored."""
+    """HN-HEALTH-005 — editable fields only.
+
+    Server-owned / identity fields (id, user_id, created_at, metric_type,
+    family_member_id) are not part of this schema and are ignored if supplied.
+    Ordinary corrections preserve family ownership.
+    """
 
     value: Optional[float] = None
     value2: Optional[float] = None
     unit: Optional[str] = Field(None, max_length=50)
     notes: Optional[str] = Field(None, max_length=2000)
     recorded_at: Optional[datetime] = None
-    # Omit = unchanged; explicit null = Self; int = owned active family member.
-    family_member_id: Optional[int] = Field(None, ge=1)
 
     @field_validator("value", "value2", mode="before")
     @classmethod

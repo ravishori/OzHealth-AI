@@ -269,6 +269,7 @@ class _LogMetricScreenState extends State<LogMetricScreen> {
             : null;
         final notesText = _notesController.text.trim();
 
+        // Family ownership is frozen on edit — do not reassign subject.
         await HealthApi.updateMetric(
           metricId: id,
           value: value,
@@ -278,8 +279,6 @@ class _LogMetricScreenState extends State<LogMetricScreen> {
           notes: notesText.isEmpty ? null : notesText,
           clearNotes: notesText.isEmpty,
           recordedAt: _loggedAt.toUtc().toIso8601String(),
-          familyMemberId: _selectedFamilyMemberId,
-          clearFamilyMember: _selectedFamilyMemberId == null,
         );
       } else {
         final data = <String, dynamic>{
@@ -693,6 +692,7 @@ class _LogMetricScreenState extends State<LogMetricScreen> {
                   value: _selectedFamilyMemberId,
                   isExpanded: true,
                   underline: const SizedBox(),
+                  // Subject locked when correcting an existing reading.
                   items: [
                     const DropdownMenuItem<int?>(
                         value: null, child: Text('Myself')),
@@ -703,10 +703,18 @@ class _LogMetricScreenState extends State<LogMetricScreen> {
                       ),
                     ),
                   ],
-                  onChanged: (v) =>
-                      setState(() => _selectedFamilyMemberId = v),
+                  onChanged: _isEdit
+                      ? null
+                      : (v) => setState(() => _selectedFamilyMemberId = v),
                 ),
               ),
+        if (_isEdit) ...[
+          const SizedBox(height: 8),
+          Text(
+            'Logged-for subject cannot be changed when editing.',
+            style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+          ),
+        ],
       ],
     );
   }

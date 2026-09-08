@@ -259,13 +259,18 @@ async def update_metric(
     HN-HEALTH-005 — edit an existing health metric owned by the authenticated user.
 
     Ownership is enforced by id + user_id. Cross-user / missing → 404.
+    Family ownership and metric type are preserved (not reassigned on edit).
     Does not diagnose, prescribe, or interpret readings clinically.
     """
     if not data.model_fields_set:
         raise HTTPException(status_code=422, detail="No fields to update")
 
     metric = await _get_owned_metric(db, metric_id, current_user.id)
-    previous_family_id = metric.family_member_id
+    # Preserve identity / ownership — never trust client reassignment.
+    owner_id = metric.user_id
+    family_id = metric.family_member_id
+    metric_type = metric.metric_type
+    created_at = getattr(metric, "created_at", None)
 
     if "value" in data.model_fields_set:
         if data.value is None:
@@ -282,21 +287,17 @@ async def update_metric(
             raise HTTPException(status_code=422, detail="recorded_at cannot be null")
         metric.recorded_at = data.recorded_at
 
-    if "family_member_id" in data.model_fields_set:
-        if data.family_member_id is None:
-            metric.family_member_id = None
-        else:
-            await _require_owned_active_family_member(
-                db, data.family_member_id, current_user.id
-            )
-            metric.family_member_id = data.family_member_id
+    # Hard-freeze identity fields even if ORM state was mutated somehow.
+    metric.user_id = owner_id
+    metric.family_member_id = family_id
+    metric.metric_type = metric_type
+    if created_at is not None:
+        metric.created_at = created_at
 
     await db.commit()
     await db.refresh(metric)
 
-    await _invalidate_summary_cache(current_user.id, previous_family_id)
-    if metric.family_member_id != previous_family_id:
-        await _invalidate_summary_cache(current_user.id, metric.family_member_id)
+    await _invalidate_summary_cache(current_user.id, family_id)
 
     # Audit: identity only — do not log values/notes (PHI).
     audit_log.info(
