@@ -209,7 +209,7 @@ Do **not** claim regulatory compliance from this track alone.
 | HN-MED-010 | Australian medicine identification (ARTG) | 🟢 COMPLETED | Implemented | V1.1 |
 | HN-MED-011 | Live TGA/ARTG enrichment on hot path | 🟡 UNDER DEVELOPMENT | Partially implemented | V1.3 |
 | HN-MED-012 | PBS integration | 🟡 UNDER DEVELOPMENT | Partially implemented | V1.3 |
-| HN-SOS-004 | Australian emergency numbers | 🟡 UNDER DEVELOPMENT | Partially implemented | V1.0 |
+| HN-SOS-004 | Australian emergency numbers | 🟢 COMPLETED | Implemented | V1.0 |
 | HN-LEGAL-008 | Australian Privacy Principles readiness | 🟡 UNDER DEVELOPMENT | Partially implemented | V1.0 |
 | HN-AU-001 | AU medicine catalog (DB) | 🟢 COMPLETED | Implemented | V1.1 |
 | HN-AU-002 | TGA identity fields | 🟢 COMPLETED | Implemented | V1.1 |
@@ -357,7 +357,7 @@ Do **not** claim regulatory compliance from this track alone.
 | HN-SOS-001 | Wave 1 | L. Emergency / SOS | Emergency button / long-press SOS | Implemented & Working | 🟢 COMPLETED | P1 | V1.0 | — | VERIFIED | SPRINT3_SOS_HOLD | Explicit 3s `SosHoldButton` (Listener + AnimationController); early release cancels; progress ring; Sprint2 dial-first honesty preserved; device SOS-ANDROID matrix PASS |
 | HN-SOS-002 | Wave 1 | L. Emergency / SOS | Emergency contacts CRUD | Partially Implemented | 🟢 COMPLETED | P1 | V1.0 | Remaining: None for delete path | VERIFIED | SPRINT2_SOS_DEVICE | Add/list + API delete; Sprint2: delete confirm UI; device SOS-03 PASS on emulator-5554 |
 | HN-SOS-003 | Wave 1 | L. Emergency / SOS | Call emergency contact | Implemented & Working | 🟢 COMPLETED | P0 | V1.0 | Phone dialer | PARTIALLY VERIFIED | STATUS.md | `tel:` launcher |
-| HN-SOS-004 | Wave 1 | L. Emergency / SOS | Australian emergency numbers | Partially Implemented | 🟡 UNDER DEVELOPMENT | P2 | V1.0 | Remaining: Add 112/106 if required | PARTIALLY VERIFIED | STATUS.md | 000, Poisons 13 11 26, Healthdirect 1800 022 222; no 112/106 |
+| HN-SOS-004 | Wave 1 | L. Emergency / SOS | Australian emergency numbers | Implemented & Working | 🟢 COMPLETED | P2 | V1.0 | Remaining: Android E2E on stable emulator/device | PARTIALLY VERIFIED | HN-SOS-004 | 000 primary + 112 + 106 (TTY) + Poisons 13 11 26 + Healthdirect 1800 022 222; Emergency vs Health support sections; dial-first `_callNumber`/`tel:`; Semantics labels; SOS004-01..12 host PASS; Android E2E PENDING |
 | HN-SOS-005 | Wave 1 | L. Emergency / SOS | GPS location capture | Implemented & Working | 🟢 COMPLETED | P0 | V1.0 | Device GPS | PARTIALLY VERIFIED | STATUS.md | Geolocator in SOS flow |
 | HN-SOS-006 | Wave 1 | L. Emergency / SOS | Location sharing to contacts | Mock/Demo | 🟢 COMPLETED | P0 | V1.0 | Remaining: Real SMS/push to contacts (future) | VERIFIED | SPRINT2_SOS_DEVICE | Dial-first honesty; device long-press SOS contacts_notified=0; no false share claim |
 | HN-SOS-007 | Wave 1 | L. Emergency / SOS | Permission / failure handling | Implemented & Working | 🟢 COMPLETED | P1 | V1.0 | — | PARTIALLY VERIFIED | STATUS.md | Snackbars; call 000 fallback copy |

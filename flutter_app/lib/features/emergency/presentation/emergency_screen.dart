@@ -5,6 +5,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:vitapulse_ai/core/network/api_client.dart';
+import 'package:vitapulse_ai/features/emergency/data/au_emergency_numbers.dart';
 import 'package:vitapulse_ai/features/emergency/data/emergency_api.dart';
 import 'package:vitapulse_ai/features/emergency/presentation/sos_hold_button.dart';
 import 'package:vitapulse_ai/shared/widgets/clinical_safety_banner.dart';
@@ -29,24 +30,9 @@ class _EmergencyScreenState extends State<EmergencyScreen>
   bool _contactsLoading = true;
   List<_EmergencyContact> _contacts = [];
 
-  static const List<_AuNumber> _auNumbers = [
-    _AuNumber(
-        label: '000',
-        description: 'Emergency Services',
-        subtitle: 'Police · Fire · Ambulance',
-        icon: Icons.emergency_rounded),
-    _AuNumber(
-        label: '13 11 26',
-        description: 'Poisons Information',
-        subtitle: '24/7 toxicology advice',
-        icon: Icons.science_outlined),
-    _AuNumber(
-        label: '1800 022 222',
-        description: 'Health Direct',
-        subtitle: 'Free health advice line',
-        icon: Icons.local_hospital_outlined),
-  ];
-
+  /// HN-SOS-004 — single source in [kAustralianEmergencyNumbers].
+  static const List<AuEmergencyNumber> _auNumbers =
+      kAustralianEmergencyNumbers;
   @override
   void initState() {
     super.initState();
@@ -458,12 +444,18 @@ class _EmergencyScreenState extends State<EmergencyScreen>
   Widget _buildAuNumbers() {
     final hc = HealthcareColors.of(context);
     final cs = Theme.of(context).colorScheme;
+    final emergency = _auNumbers
+        .where((n) => n.category == AuEmergencyCategory.emergency)
+        .toList(growable: false);
+    final support = _auNumbers
+        .where((n) => n.category == AuEmergencyCategory.healthSupport)
+        .toList(growable: false);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
           child: Row(
             children: [
               Container(
@@ -476,22 +468,79 @@ class _EmergencyScreenState extends State<EmergencyScreen>
                     size: 18, color: hc.emergency),
               ),
               const SizedBox(width: 10),
-              Text(
-                'Australian Emergency Numbers',
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: cs.onSurface,
+              Expanded(
+                child: Text(
+                  'Australian Emergency Numbers',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: cs.onSurface,
+                  ),
                 ),
               ),
             ],
           ),
         ),
-        ..._auNumbers.map((n) => _AuNumberCard(
+        _buildAuSectionHeader(
+          title: 'Emergency',
+          hint:
+              'Dial these numbers yourself — HealthNest does not place the call.',
+          emphasize: true,
+        ),
+        ...emergency.map((n) => _AuNumberCard(
+              key: Key('au_number_${n.dialDigits}'),
               number: n,
+              emphasizeEmergency: true,
+              isPrimary: n.label == '000',
+              onCall: () => _callNumber(n.label),
+            )),
+        _buildAuSectionHeader(
+          title: 'Health support',
+          hint: 'Advice lines — not a substitute for calling 000.',
+          emphasize: false,
+        ),
+        ...support.map((n) => _AuNumberCard(
+              key: Key('au_number_${n.dialDigits}'),
+              number: n,
+              emphasizeEmergency: false,
+              isPrimary: false,
               onCall: () => _callNumber(n.label),
             )),
       ],
+    );
+  }
+
+  Widget _buildAuSectionHeader({
+    required String title,
+    required String hint,
+    required bool emphasize,
+  }) {
+    final hc = HealthcareColors.of(context);
+    final cs = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.4,
+              color: emphasize ? hc.emergency : cs.primary,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            hint,
+            style: TextStyle(
+              fontSize: 11,
+              color: cs.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -692,108 +741,127 @@ class _EmergencyContact {
   }
 }
 
-class _AuNumber {
-  final String label;
-  final String description;
-  final String subtitle;
-  final IconData icon;
-
-  const _AuNumber({
-    required this.label,
-    required this.description,
-    required this.subtitle,
-    required this.icon,
-  });
-}
-
 // ─────────────────────────── Widgets ───────────────────────────
 
 class _AuNumberCard extends StatelessWidget {
-  final _AuNumber number;
+  final AuEmergencyNumber number;
   final VoidCallback onCall;
+  final bool emphasizeEmergency;
+  final bool isPrimary;
 
-  const _AuNumberCard({required this.number, required this.onCall});
+  const _AuNumberCard({
+    super.key,
+    required this.number,
+    required this.onCall,
+    required this.emphasizeEmergency,
+    required this.isPrimary,
+  });
 
   @override
   Widget build(BuildContext context) {
     final hc = HealthcareColors.of(context);
     final cs = Theme.of(context).colorScheme;
+    final accent = emphasizeEmergency ? hc.emergency : cs.primary;
+    final borderColor = emphasizeEmergency
+        ? hc.emergency.withValues(alpha: isPrimary ? 0.35 : 0.15)
+        : cs.outlineVariant.withValues(alpha: 0.7);
 
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
-      decoration: BoxDecoration(
-        color: cs.surfaceContainerLowest,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: hc.emergency.withValues(alpha: 0.15),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: cs.shadow.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+    return Semantics(
+      button: true,
+      label: number.semanticLabel,
+      hint:
+          'Opens the phone dialler. Does not complete the call automatically.',
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
+        decoration: BoxDecoration(
+          color: cs.surfaceContainerLowest,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: borderColor,
+            width: isPrimary ? 1.5 : 1,
           ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: hc.emergency.withValues(alpha: 0.10),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(number.icon, color: hc.emergency, size: 22),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    number.label,
-                    style: TextStyle(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 18,
-                      color: hc.emergency,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                  Text(
-                    number.description,
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
-                      color: cs.onSurface,
-                    ),
-                  ),
-                  Text(
-                    number.subtitle,
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: cs.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            FilledButton.icon(
-              onPressed: onCall,
-              icon: const Icon(Icons.phone_rounded, size: 16),
-              label: const Text('Call'),
-              style: FilledButton.styleFrom(
-                backgroundColor: hc.emergency,
-                foregroundColor: Colors.white,
-                minimumSize: const Size(76, 38),
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
-              ),
+          boxShadow: [
+            BoxShadow(
+              color: cs.shadow.withValues(alpha: 0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
             ),
           ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(number.icon, color: accent, size: 22),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (isPrimary)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 2),
+                        child: Text(
+                          'Primary emergency',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: hc.emergency,
+                            letterSpacing: 0.3,
+                          ),
+                        ),
+                      ),
+                    Text(
+                      number.label,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: isPrimary ? 20 : 18,
+                        color: accent,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    Text(
+                      number.description,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                        color: cs.onSurface,
+                      ),
+                    ),
+                    Text(
+                      number.subtitle,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: cs.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              FilledButton.icon(
+                key: Key('au_call_${number.dialDigits}'),
+                onPressed: onCall,
+                icon: const Icon(Icons.phone_rounded, size: 16),
+                label: const Text('Call'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: accent,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size(76, 38),
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
