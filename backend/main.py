@@ -324,8 +324,29 @@ async def root():
 
 @app.get("/health", tags=["Meta"])
 async def health():
-    """Liveness probe — returns 200 when the app is running."""
+    """Liveness probe — returns 200 when the app process is serving."""
     return {"status": "healthy"}
+
+
+@app.get("/ready", tags=["Meta"])
+async def ready():
+    """
+    Readiness probe — verifies the API can reach PostgreSQL.
+    Used by local Docker Compose healthchecks (HN-INFRA-006).
+    """
+    from fastapi.responses import JSONResponse
+    from sqlalchemy import text
+    from app.core.database import AsyncSessionLocal
+
+    try:
+        async with AsyncSessionLocal() as db:
+            await db.execute(text("SELECT 1"))
+        return {"status": "ready", "database": "ok"}
+    except Exception:
+        return JSONResponse(
+            status_code=503,
+            content={"status": "not_ready", "database": "unavailable"},
+        )
 
 
 @app.get(f"{PREFIX}/admin/stats", tags=["Admin"])

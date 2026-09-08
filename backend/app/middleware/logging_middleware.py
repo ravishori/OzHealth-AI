@@ -22,7 +22,7 @@ from app.core.logging_config import perf_log
 logger = logging.getLogger("vitapulse.http")
 
 # Paths to skip (health probes, static files)
-_SKIP_PATHS = {"/", "/health", "/docs", "/openapi.json", "/redoc"}
+_SKIP_PATHS = {"/", "/health", "/ready", "/docs", "/openapi.json", "/redoc"}
 
 # Slow request thresholds (milliseconds)
 _SLOW_WARN_MS  = 2_000

@@ -1,4 +1,16 @@
-version: '3.9'
+# HealthNest / VitaPulse — LOCAL development Compose stack only.
+# Do NOT connect these services to cloud managed databases or remote production hosts.
+#
+# Prerequisites:
+#   1. Copy `.env.example` → `.env` and set POSTGRES_PASSWORD + SECRET_KEY
+#   2. Copy `backend/.env.example` → `backend/.env` and fill local placeholders
+#   3. docker compose up --build
+#
+# Host ports: PostgreSQL 5432, Redis 6379, API 8000
+# In-container DB host is the Compose service name `postgres` (not localhost).
+# Android emulator → host API: http://10.0.2.2:8000 (see docs/LOCAL_DEVELOPMENT.md)
+
+name: healthnest-local
 
 services:
   postgres:
@@ -6,25 +18,36 @@ services:
     container_name: vitapulse_db
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the environment}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the root .env (see .env.example)}
       POSTGRES_DB: "VitaPulse AI"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
+    networks:
+      - healthnest_local
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 10s
+      test: ["CMD-SHELL", "pg_isready -U postgres -d 'VitaPulse AI'"]
+      interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 10s
 
   redis:
     image: redis:7-alpine
     container_name: vitapulse_redis
     ports:
       - "6379:6379"
+    networks:
+      - healthnest_local
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
 
   backend:
     build:
@@ -34,17 +57,43 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql+asyncpg://postgres:${POSTGRES_PASSWORD}@postgres:5432/VitaPulse%20AI
-      - SYNC_DATABASE_URL=postgresql+psycopg2://postgres:${POSTGRES_PASSWORD}@postgres:5432/VitaPulse AI
+      # Compose service DNS — never use localhost for Postgres/Redis inside the container
+      DATABASE_URL: postgresql+asyncpg://postgres:${POSTGRES_PASSWORD}@postgres:5432/VitaPulse%20AI
+      SYNC_DATABASE_URL: postgresql+psycopg2://postgres:${POSTGRES_PASSWORD}@postgres:5432/VitaPulse AI
+      REDIS_URL: redis://redis:6379/0
+      SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in the root .env (see .env.example)}
+      DEBUG: ${DEBUG:-true}
     env_file:
-      - ./backend/.env
+      - path: ./backend/.env
+        required: false
     volumes:
       - ./backend:/app
       - uploads_data:/app/uploads
+    networks:
+      - healthnest_local
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     restart: unless-stopped
+    healthcheck:
+      # Application readiness (HTTP /ready), not merely process existence
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=3)",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+
+networks:
+  healthnest_local:
+    driver: bridge
 
 volumes:
   postgres_data:

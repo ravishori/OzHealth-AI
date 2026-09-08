@@ -15,4 +15,5 @@ COPY . .
 
 EXPOSE 8000
 
+# Local Compose probes GET /ready (application readiness) via python stdlib.
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

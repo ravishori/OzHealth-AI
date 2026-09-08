@@ -2,13 +2,22 @@
 
 ## Quick Start
 
+> Full local Compose + networking notes: [`docs/LOCAL_DEVELOPMENT.md`](docs/LOCAL_DEVELOPMENT.md)
+> (HN-INFRA-006). Local only — do not point Compose at Azure/production databases.
+
 ### Option A — Docker (Recommended)
 ```bash
-cd "D:/ravishori/OzHealth AI"
-docker-compose up --build
+# From the repository root
+cp .env.example .env
+cp backend/.env.example backend/.env
+# Set POSTGRES_PASSWORD and SECRET_KEY to local placeholders only
+
+docker compose up --build
 ```
-- PostgreSQL available at `localhost:5432`
+- PostgreSQL available at `localhost:5432` (container DNS name inside Compose: `postgres`)
+- Redis available at `localhost:6379` (container DNS name: `redis`)
 - FastAPI backend at `http://localhost:8000`
+- Liveness `GET /health` · Readiness `GET /ready`
 - API docs at `http://localhost:8000/docs`
 
 ### Option B — Local (no Docker)
@@ -90,7 +99,9 @@ flutter pub get
 flutter run   # with Android emulator running
 ```
 
-**Backend URL (Android emulator):** `http://10.0.2.2:8000/api/v1`
+**Backend URL (Android emulator):** `http://10.0.2.2:8000/api/v1`  
+(Host loopback from the emulator; see `docs/LOCAL_DEVELOPMENT.md`. This documents
+connectivity only — it does not verify feature Android E2E by itself.)
 
 ### Architecture
 ```
