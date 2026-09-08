@@ -230,6 +230,9 @@ async def test_auth_logout_07_second_logout_with_old_token_fails(auth_app):
 @pytest.mark.anyio
 async def test_auth_logout_14_15_new_tokens_after_version_bump(auth_app):
     """AUTH-LOGOUT-14 / 15: new session with current tv works after logout."""
+    from app.core.security import refresh_token_ttl_seconds
+    from app.services.refresh_token_store import RefreshTokenStore
+
     user = _user(tv=1)  # already logged out once
     app, _ = auth_app(user)
     fresh = create_access_token({"sub": "1"}, token_version=1)
@@ -240,8 +243,10 @@ async def test_auth_logout_14_15_new_tokens_after_version_bump(auth_app):
             headers={"Authorization": f"Bearer {fresh}"},
         )
         assert ok.status_code == 200
-        # refresh with matching tv
+        # refresh with matching tv (HN-AUTH-011: jti must be registered)
         rt = create_refresh_token({"sub": "1"}, token_version=1)
+        jti = decode_token(rt)["jti"]
+        assert await RefreshTokenStore.register(jti, 1, refresh_token_ttl_seconds())
         refreshed = await client.post(
             "/api/v1/auth/refresh",
             json={"refresh_token": rt},
@@ -251,3 +256,9 @@ async def test_auth_logout_14_15_new_tokens_after_version_bump(auth_app):
         assert "access_token" in body and "refresh_token" in body
         # new access embeds same tv
         assert decode_token(body["access_token"]).get("tv") == 1
+        # rotated predecessor is consumed
+        replay = await client.post(
+            "/api/v1/auth/refresh",
+            json={"refresh_token": rt},
+        )
+        assert replay.status_code == 401

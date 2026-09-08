@@ -11,6 +11,7 @@ from app.core.database import get_db
 from app.core.security import (
     generate_otp, hash_otp, verify_otp,
     create_access_token, create_refresh_token, decode_token,
+    refresh_token_ttl_seconds,
 )
 from app.core.deps import get_current_user, token_version_matches
 from app.core.config import settings
@@ -23,10 +24,52 @@ from app.schemas.auth import (
     LoginRequest, RefreshTokenRequest, TokenResponse
 )
 from app.services.cache_service import CacheService
+from app.services.refresh_token_store import RefreshTokenStore
 
 
 def _user_token_version(user) -> int:
     return int(getattr(user, "token_version", 0) or 0)
+
+
+async def _issue_token_pair(user_id: int, name: str, token_version: int, *, is_new_user: bool = False) -> TokenResponse:
+    """
+    Issue access + refresh tokens and register the refresh ``jti`` (HN-AUTH-011).
+
+    Does not log token material. Registration failure fails closed (503) so the
+    server never returns an untracked refresh token.
+    """
+    access_token = create_access_token(
+        {"sub": str(user_id)},
+        token_version=token_version,
+    )
+    refresh_token = create_refresh_token(
+        {"sub": str(user_id)},
+        token_version=token_version,
+    )
+    payload = decode_token(refresh_token)
+    jti = payload.get("jti")
+    if not jti:
+        raise HTTPException(
+            status_code=503,
+            detail="Unable to issue session. Please try again.",
+        )
+    registered = await RefreshTokenStore.register(
+        jti,
+        int(user_id),
+        refresh_token_ttl_seconds(),
+    )
+    if not registered:
+        raise HTTPException(
+            status_code=503,
+            detail="Unable to issue session. Please try again.",
+        )
+    return TokenResponse(
+        access_token=access_token,
+        refresh_token=refresh_token,
+        user_id=user_id,
+        name=name,
+        is_new_user=is_new_user,
+    )
 
 # ---------------------------------------------------------------------------
 # Stored-procedure call helpers
@@ -589,20 +632,10 @@ async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
     if orm_user is not None:
         tv = _user_token_version(orm_user)
 
-    access_token = create_access_token(
-        {"sub": str(user_row.id)},
-        token_version=tv,
-    )
-    refresh_token = create_refresh_token(
-        {"sub": str(user_row.id)},
-        token_version=tv,
-    )
-
-    return TokenResponse(
-        access_token=access_token,
-        refresh_token=refresh_token,
-        user_id=user_row.id,
-        name=req.name,
+    return await _issue_token_pair(
+        int(user_row.id),
+        req.name,
+        tv,
         is_new_user=True,
     )
 
@@ -653,25 +686,11 @@ async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
     if orm_user is not None:
         tv = _user_token_version(orm_user)
 
-    access_token = create_access_token(
-        {"sub": str(user_row.id)},
-        token_version=tv,
-    )
-    refresh_token = create_refresh_token(
-        {"sub": str(user_row.id)},
-        token_version=tv,
-    )
-
-    return TokenResponse(
-        access_token=access_token,
-        refresh_token=refresh_token,
-        user_id=user_row.id,
-        name=user_row.name,
-    )
+    return await _issue_token_pair(int(user_row.id), user_row.name, tv)
 
 
 # =========================
-# REFRESH TOKEN
+# REFRESH TOKEN (HN-AUTH-011 rotate-on-use)
 # =========================
 
 @router.post("/refresh", response_model=TokenResponse)
@@ -680,8 +699,13 @@ async def refresh_token(req: RefreshTokenRequest, db: AsyncSession = Depends(get
 
     user_id = payload.get("sub")
     token_type = payload.get("type")
+    jti = payload.get("jti")
 
     if not user_id or token_type != "refresh":
+        raise HTTPException(status_code=401, detail="Invalid refresh token. Please login again.")
+
+    # Fail closed: refresh JWTs without jti cannot be rotation-tracked.
+    if not jti:
         raise HTTPException(status_code=401, detail="Invalid refresh token. Please login again.")
 
     result = await db.execute(select(User).where(User.id == int(user_id)))
@@ -695,16 +719,13 @@ async def refresh_token(req: RefreshTokenRequest, db: AsyncSession = Depends(get
             detail="Session has been revoked. Please login again.",
         )
 
-    tv = _user_token_version(user)
-    access_token = create_access_token({"sub": str(user.id)}, token_version=tv)
-    new_refresh_token = create_refresh_token({"sub": str(user.id)}, token_version=tv)
+    # Atomic consume BEFORE issuing a successor — prevents replay / double-use.
+    consumed = await RefreshTokenStore.consume(str(jti), int(user.id))
+    if not consumed:
+        raise HTTPException(status_code=401, detail="Invalid refresh token. Please login again.")
 
-    return TokenResponse(
-        access_token=access_token,
-        refresh_token=new_refresh_token,
-        user_id=user.id,
-        name=user.name,
-    )
+    tv = _user_token_version(user)
+    return await _issue_token_pair(int(user.id), user.name, tv)
 
 
 # =========================

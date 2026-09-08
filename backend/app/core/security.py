@@ -5,6 +5,7 @@ from passlib.context import CryptContext
 from app.core.config import settings
 import random
 import string
+import uuid
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -28,14 +29,28 @@ def create_access_token(
 
 
 def create_refresh_token(data: dict, *, token_version: int = 0) -> str:
+    """
+    Build a refresh JWT.
+
+    HN-AUTH-011: every refresh token embeds a unique ``jti`` so the server can
+    atomically consume/rotate one token without invalidating other devices.
+    """
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+    # Caller may supply jti for tests; otherwise mint a new opaque id.
+    jti = to_encode.pop("jti", None) or str(uuid.uuid4())
     to_encode.update({
         "exp": expire,
         "type": "refresh",
         "tv": int(token_version),
+        "jti": jti,
     })
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+
+
+def refresh_token_ttl_seconds() -> int:
+    """TTL for server-side refresh jti bindings (matches JWT refresh lifetime)."""
+    return int(settings.REFRESH_TOKEN_EXPIRE_DAYS) * 24 * 60 * 60
 
 
 def decode_token(token: str) -> dict:
