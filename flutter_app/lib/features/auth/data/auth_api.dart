@@ -69,18 +69,24 @@ class AuthApi {
     return data;
   }
 
-  /// Pre-validate an OTP without consuming it.
-  /// Returns normally on success; throws [AppError] on invalid/expired OTP.
-  static Future<void> verifyOtp(
+  /// Standalone OTP verification (HN-AUTH-017).
+  ///
+  /// Calls `POST /auth/verify-otp`. The server validates purpose, expiry, and
+  /// code, then **consumes** the OTP. Does **not** issue session tokens —
+  /// use [login] / [register] when an authenticated session is required.
+  /// Throws [AppError] on invalid/expired/replayed OTP or rate limits.
+  static Future<Map<String, dynamic>> verifyOtp(
     String identifier,
     String otpCode,
     String purpose,
   ) async {
-    await ApiClient.post('/auth/verify-otp', data: {
+    final resp = await ApiClient.post('/auth/verify-otp', data: {
       'identifier': identifier,
       'otp_code': otpCode,
       'purpose': purpose,
     });
+    final data = resp.data as Map<String, dynamic>? ?? {};
+    return data;
   }
 
   /// Call server logout **while tokens are still present**, then clear local state.

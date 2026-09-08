@@ -483,26 +483,52 @@ async def send_otp(req: SendOTPRequest, db: AsyncSession = Depends(get_db)):
 # VERIFY OTP (standalone)
 # =========================
 
+# Purposes accepted by the unauthenticated standalone verify endpoint.
+# contact_change uses authenticated /users/me/* routes; reset has no product flow.
+_STANDALONE_VERIFY_PURPOSES = frozenset({"auth", "register"})
+
+
 @router.post("/verify-otp")
 async def verify_otp_check(req: VerifyOTPRequest, db: AsyncSession = Depends(get_db)):
-    """Pre-validate an OTP without consuming it or creating a session."""
+    """
+    Standalone OTP verification (HN-AUTH-017).
+
+    Server-authoritative: validates identifier + purpose + code + expiry,
+    consumes the OTP on success, and never issues access/refresh tokens.
+    Login/register remain the session-issuing paths.
+    """
+    purpose = (req.purpose or "").strip().lower()
+    if purpose not in _STANDALONE_VERIFY_PURPOSES:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid or expired OTP. Please check the code and try again.",
+        )
+
     identifier = _normalize_identifier(req.identifier)
     await _check_otp_verify_rate(identifier)
 
-    otp_rows = await _fn_get_valid_otps(db, identifier, req.purpose)
+    otp_rows = await _fn_get_valid_otps(db, identifier, purpose)
+    matched = None
     for row in otp_rows:
         if verify_otp(req.otp_code, row.otp_hash):
-            await _clear_verify_rate(identifier)
-            audit_log.info(
-                "otp_pre_verified",
-                extra={"identifier": _mask(identifier), "purpose": req.purpose},
-            )
-            return {"valid": True, "message": "OTP verified successfully"}
+            matched = row
+            break
 
-    raise HTTPException(
-        status_code=400,
-        detail="Invalid or expired OTP. Please check the code and try again.",
+    if matched is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid or expired OTP. Please check the code and try again.",
+        )
+
+    await _sp_mark_otp_used(db, matched.id)
+    await db.commit()
+    await _clear_verify_rate(identifier)
+
+    audit_log.info(
+        "otp_verified",
+        extra={"identifier": _mask(identifier), "purpose": purpose},
     )
+    return {"valid": True, "message": "OTP verified successfully"}
 
 
 # =========================
