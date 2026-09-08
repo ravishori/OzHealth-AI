@@ -1,4 +1,4 @@
-"""HN-REM-010 — Appointment Reminder (REM10 backend contracts)."""
+"""HN-REM-010 — Appointment Reminder (REM10-BE / REM10 contracts)."""
 from __future__ import annotations
 
 import os

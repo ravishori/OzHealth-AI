@@ -205,8 +205,9 @@ class _AddAppointmentScreenState extends State<AddAppointmentScreen> {
       final cancel = widget.cancelNotification ??
           LocalReminderNotifications.cancelAppointmentNotification;
 
+      var notificationScheduled = true;
       if (active) {
-        await schedule(
+        notificationScheduled = await schedule(
           appointmentId: appointmentId,
           title: title,
           scheduledAt: scheduled,
@@ -218,6 +219,21 @@ class _AddAppointmentScreenState extends State<AddAppointmentScreen> {
       }
 
       if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            notificationScheduled
+                ? (widget.isEdit
+                    ? 'Appointment updated (on-device reminder scheduled)'
+                    : 'Appointment saved (on-device reminder scheduled)')
+                : (widget.isEdit
+                    ? 'Appointment updated, but notification permission is off. '
+                        'Enable notifications in system settings to get alerts.'
+                    : 'Appointment saved, but notification permission is off. '
+                        'Enable notifications in system settings to get alerts.'),
+          ),
+        ),
+      );
       Navigator.of(context).pop(true);
     } catch (_) {
       if (!mounted) return;

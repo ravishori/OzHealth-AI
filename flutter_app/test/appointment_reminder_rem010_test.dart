@@ -312,4 +312,115 @@ void main() {
     await tester.pumpAndSettle();
     expect(creates, 1);
   });
+
+  testWidgets('REM10-FL-05 edit save reschedules notification', (tester) async {
+    var scheduleCalls = 0;
+    var updateCalls = 0;
+    await tester.pumpWidget(
+      _wrap(
+        AddAppointmentScreen(
+          initialAppointment: _sample(id: 55, title: 'Old title', remind: 30),
+          loadFamilyMembers: () async => [],
+          updateAppointment: (id, data) async {
+            updateCalls++;
+            expect(id, 55);
+            return {
+              ...data,
+              'id': id,
+              'user_id': 1,
+              'is_active': true,
+              'created_at': '2026-09-08T00:00:00Z',
+            };
+          },
+          scheduleNotification: ({
+            required appointmentId,
+            required title,
+            required scheduledAt,
+            remindBeforeMinutes = 60,
+            notes,
+          }) async {
+            scheduleCalls++;
+            expect(appointmentId, 55);
+            expect(title, isNotEmpty);
+            return true;
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('appointment_title_field')),
+      'Updated title',
+    );
+    await tester.tap(find.byKey(const Key('appointment_save_button')));
+    await tester.pumpAndSettle();
+    expect(updateCalls, 1);
+    expect(scheduleCalls, 1);
+  });
+
+  testWidgets('REM10-FL-07 permission denied does not claim scheduled',
+      (tester) async {
+    var created = false;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppThemeBuilder.light(const AppThemeSettings()),
+        home: Scaffold(
+          body: Builder(
+            builder: (context) => TextButton(
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => AddAppointmentScreen(
+                      loadFamilyMembers: () async => [],
+                      createAppointment: (data) async {
+                        created = true;
+                        return {
+                          ...data,
+                          'id': 9,
+                          'user_id': 1,
+                          'is_active': true,
+                          'created_at': '2026-09-08T00:00:00Z',
+                        };
+                      },
+                      scheduleNotification: ({
+                        required appointmentId,
+                        required title,
+                        required scheduledAt,
+                        remindBeforeMinutes = 60,
+                        notes,
+                      }) async =>
+                          false,
+                    ),
+                  ),
+                );
+              },
+              child: const Text('open_appt_form'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('open_appt_form'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('appointment_title_field')),
+      'Dentist',
+    );
+    await tester.tap(find.byKey(const Key('appointment_save_button')));
+    await tester.pumpAndSettle();
+    expect(created, isTrue);
+    expect(find.byKey(const Key('add_appointment_screen')), findsNothing);
+    // SnackBar survives on the underlying ScaffoldMessenger after pop.
+    expect(find.textContaining('notification permission is off'), findsOneWidget);
+    expect(find.textContaining('on-device reminder scheduled'), findsNothing);
+  });
+
+  test('REM10-FL notification lifecycle contracts', () {
+    expect(formSrc.contains('notification permission is off'), isTrue);
+    expect(formSrc.contains('on-device reminder scheduled'), isTrue);
+    expect(listSrc.contains('cancelAppointmentNotification'), isTrue);
+    expect(notifSrc.contains('appointmentNotificationBase = 2000000'), isTrue);
+    expect(notifSrc.contains('ensurePermission'), isTrue);
+  });
 }
