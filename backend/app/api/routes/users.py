@@ -366,16 +366,29 @@ async def delete_account(
 
 # ─────────────────── helpers ───────────────────
 
-def _user_to_response(user: User) -> dict:
-    # health_conditions and allergies are decrypted by EncryptedText TypeDecorator
-    def _parse_json(value):
-        if not value:
-            return []
-        try:
-            return json.loads(value)
-        except (json.JSONDecodeError, TypeError):
-            return []
+def _parse_json_list(value):
+    if not value:
+        return []
+    try:
+        parsed = json.loads(value)
+    except (json.JSONDecodeError, TypeError):
+        return []
+    return parsed if isinstance(parsed, list) else []
 
+
+def _parse_json_object(value):
+    """HN-PROF-006 — decrypt already applied by EncryptedText; parse object."""
+    if not value:
+        return {}
+    try:
+        parsed = json.loads(value)
+    except (json.JSONDecodeError, TypeError):
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def _user_to_response(user: User) -> dict:
+    # Encrypted fields are decrypted by EncryptedText TypeDecorator on read.
     return {
         "id": user.id,
         "name": user.name,
@@ -385,8 +398,11 @@ def _user_to_response(user: User) -> dict:
         "age": user.age,
         "gender": user.gender,
         "blood_group": user.blood_group,
-        "health_conditions": _parse_json(user.health_conditions),
-        "allergies": _parse_json(user.allergies),
+        "health_conditions": _parse_json_list(user.health_conditions),
+        "allergies": _parse_json_list(user.allergies),
+        "lifestyle_preferences": _parse_json_object(
+            getattr(user, "lifestyle_preferences", None)
+        ),
         "profile_image_url": user.profile_image_url,
         "suburb": user.suburb,
         "city": user.city,

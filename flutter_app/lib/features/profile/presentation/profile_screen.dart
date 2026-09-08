@@ -9,7 +9,9 @@ import 'package:vitapulse_ai/core/network/api_client.dart';
 import 'package:vitapulse_ai/core/utils/auth_storage.dart';
 import 'package:vitapulse_ai/core/utils/error_handler.dart';
 import 'package:vitapulse_ai/features/auth/data/auth_api.dart';
+import 'package:vitapulse_ai/features/profile/data/lifestyle_preferences.dart';
 import 'package:vitapulse_ai/features/profile/data/user_api.dart';
+import 'package:vitapulse_ai/features/profile/presentation/lifestyle_preferences_section.dart';
 import 'package:vitapulse_ai/shared/widgets/loading_button.dart';
 import 'package:vitapulse_ai/theme/design_tokens/app_radius.dart';
 import 'package:vitapulse_ai/theme/theme_extensions.dart';
@@ -398,6 +400,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
     ageCtrl.dispose();
   }
 
+  Future<void> _showLifestyleEditor() async {
+    if (_profile == null) return;
+    final current =
+        LifestylePreferences.fromApi(_profile!['lifestyle_preferences']);
+    final result = await showModalBottomSheet<Map<String, String>>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) => LifestylePreferencesEditorSheet(initial: current),
+    );
+    // Cancel → null — do not write.
+    if (result == null || !mounted) return;
+    final ok = await _patchProfile({'lifestyle_preferences': result});
+    if (ok && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Lifestyle preferences updated'),
+      ));
+    }
+  }
+
   // ── Address editor with GPS auto-fill ─────────────────────────────────────
 
   Future<void> _showAddressSheet() async {
@@ -619,6 +643,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
               chipColor: hc.vitaWarning,
               hint: 'e.g. Penicillin, Peanuts, Latex',
             ),
+          ),
+          const SizedBox(height: 16),
+          LifestylePreferencesSection(
+            preferences: LifestylePreferences.fromApi(p['lifestyle_preferences']),
+            onEdit: _showLifestyleEditor,
           ),
           const SizedBox(height: 16),
           ListTile(
