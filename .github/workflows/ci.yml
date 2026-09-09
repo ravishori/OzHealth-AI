@@ -64,8 +64,14 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
+          # Pin to the locally verified stable toolchain for this lineage
+          # (avoids silent channel drift between runners).
           channel: stable
+          flutter-version: "3.47.2"
           cache: true
+
+      - name: Flutter version
+        run: flutter --version
 
       - name: Flutter pub get
         run: flutter pub get
@@ -74,4 +80,5 @@ jobs:
         run: flutter test
 
       - name: Flutter analyze
+        # Fail-closed hard gate: warnings/errors fail the job (no suppressions).
         run: flutter analyze

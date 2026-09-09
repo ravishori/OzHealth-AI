@@ -3,7 +3,6 @@
 library;
 
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -118,9 +117,10 @@ void main() {
 
     final down = await ApiClient.downloadBytes('/records/$id/file');
     expect(down.statusCode, 200);
-    final bytes = down.data;
-    expect(bytes, isA<List<int>>());
-    final body = String.fromCharCodes(bytes as List<int>);
+    // Dio ResponseType.bytes → List<int>/Uint8List; materialize once (no redundant casts).
+    final List<int> bytes = List<int>.from(down.data as List);
+    expect(bytes, isNotEmpty);
+    final body = String.fromCharCodes(bytes);
     expect(body, _synthBytes);
     expect(body.startsWith('HNREC1'), isFalse);
     tester.printToConsole('RECORD-ANDROID-05_DOWNLOAD=PASS');
@@ -167,6 +167,6 @@ void main() {
     if (await uploadFile.exists()) {
       await uploadFile.delete();
     }
-    expect(Uint8List.fromList(bytes as List<int>).isNotEmpty, isTrue);
+    expect(bytes.isNotEmpty, isTrue);
   });
 }

@@ -92,7 +92,7 @@ GitHub Actions workflow: `.github/workflows/ci.yml`.
 | Job | Commands |
 |-----|----------|
 | Backend | `pip install -r requirements-dev.txt` then `pytest -q` (Python 3.12) |
-| Flutter | `flutter pub get`, `flutter test`, `flutter analyze` (stable channel) |
+| Flutter | `flutter pub get`, `flutter test`, `flutter analyze` (stable **3.47.2** pinned) |
 
 CI uses **placeholder** `DATABASE_URL` / `SECRET_KEY` env vars required by settings import. It does **not** use production DB credentials, Azure secrets, Anthropic keys, or Firebase credentials, and it does **not** deploy.
 
