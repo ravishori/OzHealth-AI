@@ -92,7 +92,7 @@ GitHub Actions workflow: `.github/workflows/ci.yml`.
 | Job | Commands |
 |-----|----------|
 | Backend | `pip install -r requirements-dev.txt` then `pytest -q` (Python 3.12) |
-| Flutter | `flutter pub get`, `flutter test`, `flutter analyze` (stable **3.47.2** pinned) |
+| Flutter | `flutter pub get`, `flutter test`, `flutter analyze --no-fatal-infos` (stable **3.47.2** pinned; warnings/errors still fail) |
 
 CI uses **placeholder** `DATABASE_URL` / `SECRET_KEY` env vars required by settings import. It does **not** use production DB credentials, Azure secrets, Anthropic keys, or Firebase credentials, and it does **not** deploy.
 
@@ -113,7 +113,7 @@ pytest -q
 cd flutter_app
 flutter pub get
 flutter test
-flutter analyze
+flutter analyze --no-fatal-infos
 ```
 
 Most backend tests mock DB/IO and do not need a live Postgres instance when those env vars are set.

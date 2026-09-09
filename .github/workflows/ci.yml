@@ -80,5 +80,7 @@ jobs:
         run: flutter test
 
       - name: Flutter analyze
-        # Fail-closed hard gate: warnings/errors fail the job (no suppressions).
-        run: flutter analyze
+        # Fail-closed on errors and warnings (--fatal-warnings defaults on).
+        # Pre-existing style infos (prefer_const / deprecated_member_use) must
+        # not fail the INFRA-009 gate; do NOT use --no-fatal-warnings.
+        run: flutter analyze --no-fatal-infos
